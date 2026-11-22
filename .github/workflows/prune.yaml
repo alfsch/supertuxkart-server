@@ -1,0 +1,61 @@
+name: Prune images
+
+# Removes old versions of ghcr.io/alfsch/supertuxkart-server, which publish.yaml only ever adds to: whole images are kept
+# or removed (the index and its per-architecture children), see .github/scripts/prune-images.sh for the policy. An old
+# dated tag disappearing is harmless: `latest` and the STK version tag always point at the newest publish.
+#
+# Runs every week (cron times are UTC) and deletes: a scheduled run has no inputs, so the defaults apply (5 tags, 30 days,
+# no cap) and DRY_RUN is set to false for it below; the script itself reads an empty DRY_RUN as a dry run. By hand it is a
+# dry run unless dry_run is switched off, and max_deletes caps what one run deletes.
+on:
+  schedule:
+    - cron: "43 5 * * 3"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only print what would be deleted
+        type: boolean
+        default: true
+      keep_tags:
+        description: Keep this many of the newest dated tags (at least 1)
+        default: "5"
+      keep_days:
+        description: Keep every dated tag pushed within this many days
+        default: "30"
+      max_deletes:
+        description: Delete at most this many versions in this run (empty for no limit), indexes first
+        default: ""
+
+permissions:
+  contents: read
+
+# A prune must not run against a publish in flight, and a running one is finished, not cancelled.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prune
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || inputs.dry_run }}
+          KEEP_TAGS: ${{ inputs.keep_tags }}
+          KEEP_DAYS: ${{ inputs.keep_days }}
+          MAX_DELETES: ${{ inputs.max_deletes }}
+        run: .github/scripts/prune-images.sh

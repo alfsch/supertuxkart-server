@@ -1,0 +1,7 @@
+.git
+.github
+.tmp-cfg
+README.md
+compose.example.yaml
+server_config.xml.example
+renovate.json
