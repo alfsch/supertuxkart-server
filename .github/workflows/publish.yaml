@@ -1,17 +1,23 @@
 name: Publish image
 
 # Builds the SuperTuxKart server (Dockerfile, SERVER_ONLY) for amd64 and arm64 and publishes it to
-# ghcr.io/alfsch/supertuxkart-server under three tags: `latest`, the STK version (`1.5`) and a dated one (`1.5-20261122`).
-# The dated tag is what prune.yaml works on and what a deployment can pin.
+# ghcr.io/alfsch/supertuxkart-server under four tags: `latest`, the STK version (`1.5`), a dated one (`1.5-20261122`) and a
+# release number (`1.5.3`). Every publish gets the next release number of its STK version (.github/scripts/next-patch.sh: one
+# above the highest `1.5.<n>` tag in the registry, starting at `.0`), so the last number counts the releases of that STK
+# version, and an automatic one, such as the merge of a Renovate update of the Debian base image, is a new patch level.
+# A deployment can pin the release number or the dated tag; prune.yaml works on both. Each release number also gets a GitHub
+# release (git tag `v1.5.3`), except those of the weekly run.
 #
 # STK_VERSION is the default of the ARG in the Dockerfile, with the sha256 of that release's source tarball next to it.
 # workflow_dispatch can build another release (stk_version): the checksum is then read from the GitHub release. Clients and
 # servers of different STK major versions do not play together, so change the default only when the players update.
 #
-# The weekly run rebuilds to pick up Debian base updates. It uses the build cache, so the C++ build only runs again when
-# the base image or the sources changed (`pull: true` makes a new base image invalidate it). The package is private until
-# it is made public once by hand (GitHub: Packages > supertuxkart-server > Package settings > Change visibility), and it is
-# linked to this repository there as well. Cron times are UTC.
+# The weekly run rebuilds as well and takes the next release number too. It uses the build cache, so the C++ build only runs
+# again when the base image or the sources changed (`pull: true` makes a new base image invalidate it). With the base image
+# pinned by digest (Renovate) a weekly release is therefore identical to the last one unless something changed.
+#
+# The package is public and linked to this repository (GitHub: Packages > supertuxkart-server > Package settings). Cron
+# times are UTC.
 on:
   push:
     branches: [main]
@@ -21,6 +27,7 @@ on:
       - healthcheck.sh
       - LICENSE
       - .github/scripts/smoke-test.sh
+      - .github/scripts/next-patch.sh
       - .github/workflows/publish.yaml
   schedule:
     - cron: "23 3 * * 1"
@@ -49,6 +56,7 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
       sha256: ${{ steps.meta.outputs.sha256 }}
       date: ${{ steps.meta.outputs.date }}
+      patch: ${{ steps.meta.outputs.patch }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -69,10 +77,13 @@ jobs:
               --jq ".assets[] | select(.name == \"SuperTuxKart-$version-src.tar.gz\") | .digest" | sed 's/^sha256://')"
           fi
           [[ "$sha256" =~ ^[0-9a-f]{64}$ ]] || { echo "no sha256 for STK $version" >&2; exit 1; }
+          patch="$version.$(.github/scripts/next-patch.sh "$IMAGE" "$version")"
+          echo "release number: $patch"
           {
             echo "version=$version"
             echo "sha256=$sha256"
             echo "date=$(date -u +%Y%m%d)"
+            echo "patch=$patch"
           } >> "$GITHUB_OUTPUT"
 
   # One native build per architecture (QEMU would make the C++ build take hours), pushed by digest and joined into one
@@ -134,6 +145,8 @@ jobs:
     needs: [meta, build]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      digest: ${{ steps.create.outputs.digest }}
     permissions:
       contents: read
       packages: write
@@ -150,16 +163,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create the multi-arch tags
+        id: create
         env:
           VERSION: ${{ needs.meta.outputs.version }}
           DATE: ${{ needs.meta.outputs.date }}
+          PATCH: ${{ needs.meta.outputs.patch }}
         run: |
           cd "$RUNNER_TEMP/digests"
           sources="$(printf "$IMAGE@sha256:%s " *)"
           # shellcheck disable=SC2086
           docker buildx imagetools create \
-            -t "$IMAGE:latest" -t "$IMAGE:$VERSION" -t "$IMAGE:$VERSION-$DATE" $sources
-          docker buildx imagetools inspect "$IMAGE:$VERSION-$DATE"
+            -t "$IMAGE:latest" -t "$IMAGE:$VERSION" -t "$IMAGE:$VERSION-$DATE" -t "$IMAGE:$PATCH" $sources
+          docker buildx imagetools inspect "$IMAGE:$PATCH"
+          echo "digest=$(docker buildx imagetools inspect "$IMAGE:$PATCH" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
+          echo "published $IMAGE:$PATCH" >> "$GITHUB_STEP_SUMMARY"
 
   # What a user does: pull the published tag and run a server with bots, on both architectures, on a clean runner with
   # no local copy of the image.
@@ -187,3 +204,39 @@ jobs:
         env:
           TAG: ${{ needs.meta.outputs.version }}-${{ needs.meta.outputs.date }}
         run: .github/scripts/smoke-test.sh "$IMAGE:$TAG"
+
+  # The GitHub release for the numbered image (git tag v<release number>, notes generated from the merged PRs since the last
+  # release), once the published tag has passed the smoke test on both architectures. The weekly run is left out: it still
+  # takes a release number, so its image has a tag but no GitHub release, and the releases skip those numbers. This is the only
+  # job that writes to the repository; releases made with GITHUB_TOKEN start no other workflow.
+  release:
+    needs: [meta, merge, smoke]
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.meta.outputs.version }}
+          DATE: ${{ needs.meta.outputs.date }}
+          PATCH: ${{ needs.meta.outputs.patch }}
+          DIGEST: ${{ needs.merge.outputs.digest }}
+        run: |
+          # a re-run of this job alone must not fail on the release it made before
+          if gh release view "v$PATCH" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release v$PATCH exists already"
+            exit 0
+          fi
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "no image digest to name in the notes: '$DIGEST'" >&2; exit 1; }
+          notes="$(printf '%s\n' \
+            "Container image \`$IMAGE:$PATCH\` (SuperTuxKart $VERSION, linux/amd64 and linux/arm64)." \
+            "" \
+            "- digest: \`$DIGEST\`" \
+            "- also tagged \`latest\`, \`$VERSION\` and \`$VERSION-$DATE\`" \
+            "- source: \`$GITHUB_SHA\`" \
+            "")"
+          gh release create "v$PATCH" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$PATCH" --notes "$notes" --generate-notes

@@ -2,7 +2,8 @@ name: Prune images
 
 # Removes old versions of ghcr.io/alfsch/supertuxkart-server, which publish.yaml only ever adds to: whole images are kept
 # or removed (the index and its per-architecture children), see .github/scripts/prune-images.sh for the policy. An old
-# dated tag disappearing is harmless: `latest` and the STK version tag always point at the newest publish.
+# dated tag or release number disappearing is harmless: `latest` and the STK version tag always point at the newest publish,
+# which is also the one that keeps the highest release number for next-patch.sh.
 #
 # Runs every week (cron times are UTC) and deletes: a scheduled run has no inputs, so the defaults apply (5 tags, 30 days,
 # no cap) and DRY_RUN is set to false for it below; the script itself reads an empty DRY_RUN as a dry run. By hand it is a
@@ -17,10 +18,10 @@ on:
         type: boolean
         default: true
       keep_tags:
-        description: Keep this many of the newest dated tags (at least 1)
+        description: Keep this many of the newest images, by dated tag or release number (at least 1)
         default: "5"
       keep_days:
-        description: Keep every dated tag pushed within this many days
+        description: Keep every dated or numbered tag pushed within this many days
         default: "30"
       max_deletes:
         description: Delete at most this many versions in this run (empty for no limit), indexes first

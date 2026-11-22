@@ -7,8 +7,15 @@ audio or input stack in the image, and it runs as the non-root user `stk`.
 ```
 ghcr.io/alfsch/supertuxkart-server:latest        newest build
 ghcr.io/alfsch/supertuxkart-server:1.5           newest build of STK 1.5
-ghcr.io/alfsch/supertuxkart-server:1.5-20261122  one build, for pinning
+ghcr.io/alfsch/supertuxkart-server:1.5.3         release 3 of STK 1.5, for pinning
+ghcr.io/alfsch/supertuxkart-server:1.5-20261122  the build of one day, for pinning
 ```
+
+Every publish takes the next release number of its STK version: `1.5.0`, `1.5.1`, and so on, one above the highest `1.5.<n>`
+tag in the registry. Whatever changes the image, for example the automatic merge of a Renovate update of the Debian base
+image, is therefore a new patch level, and a new STK version starts again at `.0`. Each release number also gets a
+[GitHub release](https://github.com/alfsch/supertuxkart-server/releases) (git tag `v1.5.3`) with the image digest and the
+merged PRs since the last release, except the numbers taken by the weekly run: those images have a tag, but no release.
 
 Clients and servers of different STK major versions do not play together: use the tag that matches what your players run.
 
@@ -27,7 +34,7 @@ needs UDP broadcast, and published ports would bypass the host firewall.
 
 | Item | |
 |---|---|
-| Image | `ghcr.io/alfsch/supertuxkart-server`. Tags `latest`, `<STK_VERSION>`, `<STK_VERSION>-YYYYMMDD`. Platforms `linux/amd64`, `linux/arm64`. |
+| Image | `ghcr.io/alfsch/supertuxkart-server`. Tags `latest`, `<STK_VERSION>`, `<STK_VERSION>-YYYYMMDD`, `<STK_VERSION>.<n>` (the release number). Platforms `linux/amd64`, `linux/arm64`. |
 | User | `stk` (not root) |
 | Entrypoint | `/usr/local/bin/entrypoint.sh`; it `exec`s STK, so STK is PID 1 and gets the signals (`docker stop` ends it in under a second, exit 0) |
 | Mode | `STK_MODE` = `server` or `bots`, required; anything else exits 1 with a message |
@@ -173,10 +180,14 @@ can block for minutes there (the test shares the server's network namespace inst
 
 - `publish.yaml`: on a push to `main` that touches the build, weekly (Monday), or by hand with an optional `stk_version`
   (the checksum is then read from the release). Builds natively on amd64 and arm64 runners (no QEMU), pushes by digest,
-  merges into the three tags, then pulls the result and runs the smoke test on both architectures.
+  merges into the four tags (the release number comes from `.github/scripts/next-patch.sh`), then pulls the result and runs the
+  smoke test on both architectures, and, except for the weekly run, creates the GitHub release `v<release number>` (the only
+  job with `contents: write`). The weekly run takes a release number too, so without a change it is an image identical to the
+  last one, without a GitHub release.
 - `test.yaml`: on pull requests, builds both architectures without pushing and runs the smoke test.
-- `prune.yaml`: weekly, keeps the newest 5 dated tags and everything younger than 30 days (`prune-images.sh`; by hand it is a
-  dry run unless switched off).
+- `prune.yaml`: weekly, keeps the newest 5 images (by dated tag or release number) and everything younger than 30 days
+  (`prune-images.sh`; by hand it is a dry run unless switched off). The newest image carries `latest`, so it always stays and
+  the release counter never falls back.
 - `renovate.json`: pins the Debian base image by digest and merges its digest, minor and patch updates itself once
   `test.yaml` passes. A new Debian release, all action updates and every new STK release are left for a manual merge (see
   "Updating STK").

@@ -2,12 +2,13 @@
 # Removes old versions of the published image (ghcr.io/<owner>/supertuxkart-server), used by prune.yaml. Adapted from
 # prune-base-images.sh of github.com/alfsch/ai-agent-pods.
 #
-# A published tag is several package versions, not one: the index (tagged `latest`, the STK version and a dated tag such
-# as 1.5-20261122) and, per architecture, an image manifest and an attestation manifest (untagged children of the index).
+# A published tag is several package versions, not one: the index (tagged `latest`, the STK version, a dated tag such as
+# 1.5-20261122 and a release number such as 1.5.3) and, per architecture, an image manifest and an attestation manifest
+# (untagged children of the index). Dated tags and release numbers are the ones this prunes; one image has both.
 # A rule such as "delete the untagged versions" would remove the children of images that are still in use, so whole images
 # are kept or removed:
 #
-#   keep   the KEEP_TAGS newest dated tags (by when the version was last pushed: the later of created_at and updated_at,
+#   keep   the KEEP_TAGS newest dated or release-numbered images (by when the version was last pushed: the later of created_at and updated_at,
 #          so a tag moved to an old digest is not taken for an old one) and every dated tag pushed within KEEP_DAYS
 #          days, each with its children (read from the index); KEEP_TAGS is at least 1, so the newest tag stays whatever
 #          its age
@@ -50,7 +51,7 @@ decide() {
     --argjson grace_hours "$GRACE_HOURS" '
     def tags: (.metadata.container.tags // []);
     def ts: ([.created_at, (.updated_at // .created_at)] | map(fromdateiso8601) | max);
-    def hashtag: test("^[0-9][0-9A-Za-z.]*-[0-9]{8}$");
+    def hashtag: test("^([0-9][0-9A-Za-z.]*-[0-9]{8}|[0-9]+\\.[0-9]+\\.[0-9]+)$");
     def sigtag: test("^sha256-[0-9a-f]{64}(\\.sig)?$");
     def sigkey: sub("\\.sig$"; "");
     if $keep_tags < 1 then error("KEEP_TAGS must be at least 1") else . end
@@ -76,10 +77,10 @@ decide() {
     | $v | sort_by(ts) | reverse | .[]
     | . as $x | tags as $t
     | (if ($protected | any(. == $x.name)) then ["keep", "untagged", "part of a kept image"]
-       elif ($t | any((hashtag or sigtag) | not)) then ["keep", "other", "tag that is not a dated one: " + ($t | join(","))]
+       elif ($t | any((hashtag or sigtag) | not)) then ["keep", "other", "tag that is neither dated nor a release number: " + ($t | join(","))]
        elif ($t | any(hashtag)) then
          (if ($kept_names | any(. == $x.name))
-          then ["keep", "index", "one of the newest " + ($keep_tags | tostring) + " dated tags or pushed within " + ($keep_days | tostring) + " days"]
+          then ["keep", "index", "one of the newest " + ($keep_tags | tostring) + " dated or numbered tags or pushed within " + ($keep_days | tostring) + " days"]
           else ["delete", "index", "older tag beyond the limits"] end)
        elif ($t | any(sigtag)) then
          (if ($kept_sig_versions | any(.name == $x.name))
