@@ -1,7 +1,18 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Digest-pins the Docker base images and the GitHub Actions. The Debian base image updates itself (digest, minor and patch) once the build check passes; a new Debian release (major) and every action update wait for a manual merge.",
+  "description": "Digest-pins the Docker base images and the GitHub Actions. The Debian base image updates itself (digest, minor and patch) once the build check passes; a new Debian release (major), every action update and every new STK release wait for a manual merge.",
   "extends": ["config:best-practices"],
+  "customManagers": [
+    {
+      "description": "STK_VERSION in the Dockerfile follows the STK releases. The checksum next to it is not touched: see the README, .github/scripts/update-stk-sha.sh",
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)Dockerfile$/"],
+      "matchStrings": ["ARG STK_VERSION=(?<currentValue>\\S+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "supertuxkart/stk-code",
+      "packageNameTemplate": "supertuxkart/stk-code"
+    }
+  ],
   "packageRules": [
     {
       "description": "Debian base image: security fixes arrive as digest updates of trixie-slim",
@@ -17,6 +28,13 @@
       "matchPackageNames": ["debian"],
       "matchUpdateTypes": ["major"],
       "automerge": false
+    },
+    {
+      "description": "A new STK release is a decision, never an automerge: clients and servers of different major versions do not play together, so the players have to update first. Only plain releases (1.5, 1.6), no release candidates. The PR fails the build on the stale STK_SHA256 until update-stk-sha.sh has been run on its branch.",
+      "matchPackageNames": ["supertuxkart/stk-code"],
+      "allowedVersions": "/^\\d+\\.\\d+$/",
+      "automerge": false,
+      "labels": ["stk-release"]
     }
   ]
 }

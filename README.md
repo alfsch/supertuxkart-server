@@ -134,6 +134,20 @@ Docker Compose's `depends_on: condition: service_healthy` only orders `docker co
   server stops). A server on another host cannot be probed, so there the bots simply idle if it is not reachable.
 - Bots are accepted from the LAN only (loopback and private addresses count) unless `ai-anywhere` is set in a mounted config.
 
+## Updating STK
+
+Renovate opens a PR (label `stk-release`, never merged by itself) when STK publishes a new plain release. Merge it only
+once your players have the matching client: clients and servers of different major versions do not play together.
+
+1. The PR bumps `ARG STK_VERSION` in the [Dockerfile](Dockerfile) only, so `test.yaml` fails at the checksum step.
+2. On the PR branch run `.github/scripts/update-stk-sha.sh` and commit the Dockerfile. It sets `STK_SHA256` to the digest GitHub
+   lists for `SuperTuxKart-<version>-src.tar.gz` (releases from 2025 on have one; a release that ships another file name or
+   format needs the Dockerfile adjusted first). Compare it with the release page if it matters to you.
+3. Update by hand what Renovate does not touch: the release link and the example tags in this README.
+
+A one-off build of another release does not need a PR: `publish.yaml` takes `stk_version` by hand and reads the checksum from
+the release.
+
 ## Not verified
 
 - A human joining: bots leaving as humans join (`STK_AI_HANDLING=true`), and a race started by a human. The `SERVER_ONLY`
@@ -164,8 +178,8 @@ can block for minutes there (the test shares the server's network namespace inst
 - `prune.yaml`: weekly, keeps the newest 5 dated tags and everything younger than 30 days (`prune-images.sh`; by hand it is a
   dry run unless switched off).
 - `renovate.json`: pins the Debian base image by digest and merges its digest, minor and patch updates itself once
-  `test.yaml` passes. A new Debian release and all action updates are left for a manual merge. `STK_VERSION` is not managed:
-  it has to match what the players run.
+  `test.yaml` passes. A new Debian release, all action updates and every new STK release are left for a manual merge (see
+  "Updating STK").
 
 The package is private until it is made public once by hand: GitHub, Packages, supertuxkart-server, Package settings,
 Change visibility. Link it to the repository there as well.
@@ -186,5 +200,5 @@ built unmodified from the official source release
 The image ships the upstream license texts under `/opt/stk/share/doc/supertuxkart/` (the GPL, the credits and the license
 file of each asset), and this repository's MIT license under `/opt/stk/share/doc/supertuxkart-server/LICENSE`.
 The corresponding source is the upstream release above, verified by the SHA-256 in
-the [Dockerfile](Dockerfile), plus the build scripts in this repository. When `STK_VERSION` changes, `STK_SHA256` and this
-link change with it. This is the maintainer's working assumption, not legal advice.
+the [Dockerfile](Dockerfile), plus the build scripts in this repository. When `STK_VERSION` changes, `STK_SHA256` (see "Updating STK") and
+this link change with it. This is the maintainer's working assumption, not legal advice.

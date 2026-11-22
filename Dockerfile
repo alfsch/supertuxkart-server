@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ARG STK_VERSION
 # sha256 of SuperTuxKart-${STK_VERSION}-src.tar.gz as published on the GitHub release (the release lists it as the asset
 # digest; there is no separate checksum file). Ties the binaries to one identifiable source: the GPL "Corresponding Source".
-# Update together with STK_VERSION.
+# Renovate bumps STK_VERSION; run .github/scripts/update-stk-sha.sh on its PR branch to set this to match.
 ARG STK_SHA256=33cf8841e4ff4082d80b9248014295bbbea61d14683e86dff100e3ab8f7b27cb
 WORKDIR /src
 # the release tarball contains the game data, the plain tag archive does not
