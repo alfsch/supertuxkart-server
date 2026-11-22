@@ -217,9 +217,13 @@ can block for minutes there (the test shares the server's network namespace inst
   (`prune-images.sh`; by hand it is a dry run unless switched off). The newest image carries `latest`, so it always stays and
   the release counter never falls back.
 - `renovate.json`: pins the Debian base image by digest and merges its digest, minor and patch updates itself once
-  `test.yaml` passes. A new Debian release, all action updates and every new STK release are left for a manual merge (see
-  "Updating STK"). This repository's own image in `compose.example.yaml` is left alone on purpose: it is named by tag, and a
-  digest pin would open a PR after every publish and keep the Debian pin from merging itself.
+  `test.yaml` passes. A new Debian release and every new STK release are left for a manual merge (see "Updating STK").
+  GitHub Actions are pinned by digest with the version in a comment (`uses: owner/repo@<sha> # v1.2.3`); every update of one,
+  major ones too, merges itself once the release is three days old and `test.yaml` passes (Renovate does that merge, because
+  GitHub's auto-merge would not wait for the age check). `test.yaml` does not run the steps only the publish workflow has
+  (signing, scan, release), so a bad update of those shows in the publish run after the merge. This repository's own image
+  in `compose.example.yaml` is left alone on purpose: it is named by tag, and a digest pin would open a PR after every
+  publish and keep the Debian pin from merging itself.
 
 The package is private until it is made public once by hand: GitHub, Packages, supertuxkart-server, Package settings,
 Change visibility. Link it to the repository there as well.
