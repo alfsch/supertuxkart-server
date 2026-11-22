@@ -2,7 +2,7 @@
 ARG STK_VERSION=1.5
 
 # --- build ---
-FROM debian:trixie-slim AS build
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential cmake pkg-config ca-certificates curl \
       libcurl4-openssl-dev libssl-dev zlib1g-dev libsqlite3-dev \
@@ -34,7 +34,7 @@ RUN mkdir -p /opt/stk/share/doc/supertuxkart \
  && (cd /src/data && find . -iname 'licen[cs]e*' -type f -exec cp --parents {} /opt/stk/share/doc/supertuxkart/ \;)
 
 # --- runtime ---
-FROM debian:trixie-slim
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
 ARG STK_VERSION
 LABEL org.opencontainers.image.title="supertuxkart-server" \
       org.opencontainers.image.description="SuperTuxKart dedicated server (SERVER_ONLY build) with AI bot client" \
