@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Digest-pins the Docker base images and the GitHub Actions. The Debian base image updates itself (digest, minor and patch) once the build check passes; a new Debian release (major), every action update and every new STK release wait for a manual merge.",
+  "description": "Digest-pins the Docker base images and the GitHub Actions. The Debian base image updates itself (digest, minor and patch) once the build check passes; a new Debian release (major), every new STK release wait for a manual merge. GitHub Actions stay pinned by digest with the version in a comment, and every update of one, major ones too, merges itself once it is three days old.",
   "extends": ["config:best-practices"],
   "customManagers": [
     {
@@ -28,6 +28,15 @@
       "matchPackageNames": ["debian"],
       "matchUpdateTypes": ["major"],
       "automerge": false
+    },
+    {
+      "description": "GitHub Actions (not the runner images): pinned by digest with the version in a comment, as config:best-practices does. Every update, major ones included, merges itself after the checks pass and the release is three days old; the wait is the protection against a compromised release. Renovate does the merge itself (platformAutomerge false): GitHub's auto-merge only waits for the checks the ruleset requires, and the age check (renovate/stability-days) is not one of them",
+      "matchManagers": ["github-actions"],
+      "matchDepTypes": ["action"],
+      "minimumReleaseAge": "3 days",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false
     },
     {
       "description": "This repository's own image, which compose.example.yaml names with a tag on purpose (latest): pinning it by digest would mix a non-automerge update into the Debian pin PR and open a new PR after every publish, since every publish has a new digest",
