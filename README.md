@@ -19,6 +19,24 @@ merged PRs since the last release, except the numbers taken by the weekly run: t
 
 Clients and servers of different STK major versions do not play together: use the tag that matches what your players run.
 
+## Verifying the image
+
+Every image published since signing was added is signed keylessly with [cosign](https://github.com/sigstore/cosign)
+(Sigstore); the notes of its GitHub release say so. The signature binds the image digest to the publish workflow on `main` of
+this repository, so it shows that an image was built by that workflow and not pushed by hand:
+
+```sh
+cosign verify ghcr.io/alfsch/supertuxkart-server:latest \
+  --certificate-identity https://github.com/alfsch/supertuxkart-server/.github/workflows/publish.yaml@refs/heads/main \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+It works for every tag of a signed release, since they all point at the same signed index; to be safe against a tag being moved, verify and
+then run by digest (`ghcr.io/alfsch/supertuxkart-server@sha256:...`, shown in the release notes). Releases made before
+signing was added, such as `1.5.0`, are not signed. The identity names the workflow file and the branch: renaming
+`publish.yaml` or publishing from another branch changes it. Nothing verifies on pull by itself: Docker and Watchtower do
+not check signatures, so a deployment that wants this has to run the command (or an admission policy) itself.
+
 ## Quick start
 
 ```sh
@@ -180,10 +198,11 @@ can block for minutes there (the test shares the server's network namespace inst
 
 - `publish.yaml`: on a push to `main` that touches the build, weekly (Monday), or by hand with an optional `stk_version`
   (the checksum is then read from the release). Builds natively on amd64 and arm64 runners (no QEMU), pushes by digest,
-  merges into the four tags (the release number comes from `.github/scripts/next-patch.sh`), then pulls the result and runs the
-  smoke test on both architectures, and, except for the weekly run, creates the GitHub release `v<release number>` (the only
-  job with `contents: write`). The weekly run takes a release number too, so without a change it is an image identical to the
-  last one, without a GitHub release.
+  merges into the four tags (the release number comes from `.github/scripts/next-patch.sh`) and signs the merged index with
+  cosign (keyless; the job has `id-token: write`). It then pulls the result on both architectures, verifies the signature and
+  runs the smoke test, and, except for the weekly run, creates the GitHub release `v<release number>` (the only job with
+  `contents: write`). The weekly run takes a release number too, so without a change it is an image identical to the last
+  one, without a GitHub release.
 - `test.yaml`: on pull requests, builds both architectures without pushing and runs the smoke test.
 - `prune.yaml`: weekly, keeps the newest 5 images (by dated tag or release number) and everything younger than 30 days
   (`prune-images.sh`; by hand it is a dry run unless switched off). The newest image carries `latest`, so it always stays and
