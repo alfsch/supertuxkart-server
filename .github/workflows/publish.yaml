@@ -42,6 +42,7 @@ on:
       - LICENSE
       - .github/scripts/smoke-test.sh
       - .github/scripts/next-patch.sh
+      - .github/scripts/image-unchanged.sh
       - .github/workflows/publish.yaml
   schedule:
     - cron: "23 3 * * 1"
