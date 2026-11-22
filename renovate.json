@@ -30,6 +30,11 @@
       "automerge": false
     },
     {
+      "description": "This repository's own image, which compose.example.yaml names with a tag on purpose (latest): pinning it by digest would mix a non-automerge update into the Debian pin PR and open a new PR after every publish, since every publish has a new digest",
+      "matchPackageNames": ["ghcr.io/alfsch/supertuxkart-server"],
+      "enabled": false
+    },
+    {
       "description": "A new STK release is a decision, never an automerge: clients and servers of different major versions do not play together, so the players have to update first. Only plain releases (1.5, 1.6), no release candidates. The PR fails the build on the stale STK_SHA256 until update-stk-sha.sh has been run on its branch.",
       "matchPackageNames": ["supertuxkart/stk-code"],
       "allowedVersions": "/^\\d+\\.\\d+$/",
