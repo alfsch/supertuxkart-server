@@ -209,7 +209,8 @@ can block for minutes there (the test shares the server's network namespace inst
   the release counter never falls back.
 - `renovate.json`: pins the Debian base image by digest and merges its digest, minor and patch updates itself once
   `test.yaml` passes. A new Debian release, all action updates and every new STK release are left for a manual merge (see
-  "Updating STK").
+  "Updating STK"). This repository's own image in `compose.example.yaml` is left alone on purpose: it is named by tag, and a
+  digest pin would open a PR after every publish and keep the Debian pin from merging itself.
 
 The package is private until it is made public once by hand: GitHub, Packages, supertuxkart-server, Package settings,
 Change visibility. Link it to the repository there as well.
