@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Prints the next patch number of the image for one STK version: one above the highest `<version>.<n>` tag the registry has
-# (`1.5.0`, `1.5.1`, ...), or 0 when there is none yet. publish.yaml tags every publish with it, so the tags count the
-# releases of one STK version, and a new STK version starts again at 0.
+# (`1.5.0`, `1.5.1`, ...), or 0 when there is none yet. publish.yaml tags every publish that changes the image with it, so
+# the tags count the releases of one STK version, and a new STK version starts again at 0.
 #
 # The registry is the counter: nothing is committed or tagged in git for it. The package is public, so the tag list is read
 # anonymously. Anything but a list (or "no such package" before the very first publish) fails instead of answering 0: a wrong

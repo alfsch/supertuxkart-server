@@ -11,11 +11,15 @@ ghcr.io/alfsch/supertuxkart-server:1.5.3         release 3 of STK 1.5, for pinni
 ghcr.io/alfsch/supertuxkart-server:1.5-20261122  the build of one day, for pinning
 ```
 
-Every publish takes the next release number of its STK version: `1.5.0`, `1.5.1`, and so on, one above the highest `1.5.<n>`
-tag in the registry. Whatever changes the image, for example the automatic merge of a Renovate update of the Debian base
+Every publish that changes the image takes the next release number of its STK version: `1.5.0`, `1.5.1`, and so on, one above the
+highest `1.5.<n>` tag in the registry. Whatever changes the image, for example the automatic merge of a Renovate update of the Debian base
 image, is therefore a new patch level, and a new STK version starts again at `.0`. Each release number also gets a
 [GitHub release](https://github.com/alfsch/supertuxkart-server/releases) (git tag `v1.5.3`) with the image digest and the
 merged PRs since the last release, except the numbers taken by the weekly run: those images have a tag, but no release.
+
+A build that gives the same image as the last release (the same platform image digests as `latest`, which a build-cache hit
+does, for example after a change to the README paths or to the workflow itself) publishes nothing: no number, tag, signature or
+release. Run the workflow by hand with `force` to release such a build anyway.
 
 Clients and servers of different STK major versions do not play together: use the tag that matches what your players run.
 
@@ -201,10 +205,13 @@ can block for minutes there (the test shares the server's network namespace inst
   merges into the four tags (the release number comes from `.github/scripts/next-patch.sh`) and signs the merged index with
   cosign (keyless; the job has `id-token: write`). It then pulls the result on both architectures, verifies the signature and
   runs the smoke test, and, except for the weekly run, creates the GitHub release `v<release number>` (the only job with
-  `contents: write`). The weekly run takes a release number too, so without a change it is an image identical to the last
-  one, without a GitHub release. A report-only [Trivy](https://trivy.dev) scan of the signed digest runs on both architectures
-  (fixable HIGH and CRITICAL vulnerabilities of the Debian packages; the report is in the job summary and never fails the run).
-  It does not see the libraries bundled in the STK binary or the game data.
+  `contents: write`). A `compare` job first checks whether the build changed the image at all
+  (`.github/scripts/image-unchanged.sh`): if not, tags, signature, smoke test and release are skipped. The weekly run is
+  therefore only a scan while the build cache holds; when GitHub has dropped the cache (after seven days unused) the image is
+  built afresh with current packages, takes a release number, and gets no GitHub release. A report-only [Trivy](https://trivy.dev) scan of the signed digest runs on both architectures
+  (fixable HIGH and CRITICAL vulnerabilities of the Debian packages; the report is in the job summary and never fails the run;
+  for an unchanged build it scans the image that is already published). It does not see the libraries bundled in the STK binary
+  or the game data.
 - `test.yaml`: on pull requests, builds both architectures without pushing and runs the smoke test.
 - `prune.yaml`: weekly, keeps the newest 5 images (by dated tag or release number) and everything younger than 30 days
   (`prune-images.sh`; by hand it is a dry run unless switched off). The newest image carries `latest`, so it always stays and

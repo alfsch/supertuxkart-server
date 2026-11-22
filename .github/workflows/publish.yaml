@@ -2,28 +2,33 @@ name: Publish image
 
 # Builds the SuperTuxKart server (Dockerfile, SERVER_ONLY) for amd64 and arm64 and publishes it to
 # ghcr.io/alfsch/supertuxkart-server under four tags: `latest`, the STK version (`1.5`), a dated one (`1.5-20261122`) and a
-# release number (`1.5.3`). Every publish gets the next release number of its STK version (.github/scripts/next-patch.sh: one
-# above the highest `1.5.<n>` tag in the registry, starting at `.0`), so the last number counts the releases of that STK
-# version, and an automatic one, such as the merge of a Renovate update of the Debian base image, is a new patch level.
-# A deployment can pin the release number or the dated tag; prune.yaml works on both. Each release number also gets a GitHub
-# release (git tag `v1.5.3`), except those of the weekly run.
+# release number (`1.5.3`). Every publish that changes the image gets the next release number of its STK version
+# (.github/scripts/next-patch.sh: one above the highest `1.5.<n>` tag in the registry, starting at `.0`), so the last number
+# counts the releases of that STK version, and an automatic one, such as the merge of a Renovate update of the Debian base
+# image, is a new patch level. A deployment can pin the release number or the dated tag; prune.yaml works on both. Each
+# release number also gets a GitHub release (git tag `v1.5.3`), except those of the weekly run.
+#
+# A build that did not change the image publishes nothing: the compare job checks whether the platform images just built are
+# exactly those of the index `latest` points at (.github/scripts/image-unchanged.sh). If so there is no new tag, signature,
+# smoke test or release, and no release number is used up; only the scan still runs, on the image that is published.
 #
 # STK_VERSION is the default of the ARG in the Dockerfile, with the sha256 of that release's source tarball next to it.
 # workflow_dispatch can build another release (stk_version): the checksum is then read from the GitHub release. Clients and
 # servers of different STK major versions do not play together, so change the default only when the players update.
 #
-# The weekly run rebuilds as well and takes the next release number too. It uses the build cache, so the C++ build only runs
-# again when the base image or the sources changed (`pull: true` makes a new base image invalidate it). With the base image
-# pinned by digest (Renovate) a weekly release is therefore identical to the last one unless something changed.
+# The weekly run rebuilds as well. It uses the build cache, so the C++ build only runs again when the base image or the sources
+# changed (`pull: true` makes a new base image invalidate it), and a cached build gives the same image digests, so the weekly
+# run is then only a scan. When the cache is gone (GitHub drops caches that were not used for seven days) the image is built
+# again from scratch, its digests differ, and it is released with fresh packages, without a GitHub release as before.
 #
 # The merged index (what every tag points at) is signed keylessly with cosign (Sigstore): the signature binds the image digest
 # to this workflow on main. The identity to verify is https://github.com/alfsch/supertuxkart-server/.github/workflows/publish.yaml@refs/heads/main
 # (the README has the command), so renaming this file or publishing from another branch changes it. The smoke job verifies
 # the signature of what it pulls, on a clean runner, the way a user would.
 #
-# The signed digest is scanned with Trivy afterwards (the scan job), on both architectures. It only reports: the findings are
-# in the job summary and the job never fails the run on them, since the image is already published and signed by then and the
-# weekly run is what picks up fixes.
+# The signed digest is scanned with Trivy afterwards (the scan job), on both architectures; a build that changed nothing scans
+# the image that is already published. It only reports: the findings are in the job summary and the job never fails the run on
+# them, since the image is already published and signed by then and the weekly run is what picks up fixes.
 #
 # The package is public and linked to this repository (GitHub: Packages > supertuxkart-server > Package settings). Cron
 # times are UTC.
@@ -45,6 +50,10 @@ on:
       stk_version:
         description: STK release to build (empty for the default in the Dockerfile)
         default: ""
+      force:
+        description: Release even if the build gave the same image as the last release
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -150,8 +159,47 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # Did the build change the image? A cached build gives the digests of the last release again, and then there is nothing to
+  # release. An answer the registry cannot give fails this job (and with it the run) instead of being guessed.
+  compare:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      unchanged: ${{ steps.compare.outputs.unchanged }}
+      current: ${{ steps.compare.outputs.current }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+      - id: compare
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          out="$(.github/scripts/image-unchanged.sh "$IMAGE" "$RUNNER_TEMP/digests")"
+          unchanged="$(sed -n 's/^unchanged=//p' <<<"$out")"
+          current="$(sed -n 's/^current=//p' <<<"$out")"
+          if [ "$FORCE" = true ]; then
+            [ "$unchanged" != true ] || echo "Forced: releasing although the image is unchanged." >> "$GITHUB_STEP_SUMMARY"
+            unchanged=false
+          elif [ "$unchanged" = true ]; then
+            echo "Image unchanged: the platform images built are those of $IMAGE:latest. No new tags, signature or release." \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "unchanged=$unchanged  current=$current"
+          {
+            echo "unchanged=$unchanged"
+            echo "current=$current"
+          } >> "$GITHUB_OUTPUT"
+
   merge:
-    needs: [meta, build]
+    needs: [meta, build, compare]
+    if: needs.compare.outputs.unchanged != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -196,7 +244,8 @@ jobs:
           # sign whatever it points at with its own identity
           cosign sign --yes "$IMAGE@$DIGEST"
 
-  # Vulnerability report for the digest that was just signed. Trivy scans one platform of an index (the host's by default), so
+  # Vulnerability report for the digest that was just signed, or, when the build changed nothing, for the one that is already
+  # published (so the weekly run still reports new CVEs). Trivy scans one platform of an index (the host's by default), so
   # both are named. Report only: exit-code 0 keeps findings from failing the job, continue-on-error keeps a scanner, database
   # or registry error from failing the workflow after the image is published. The table goes to the job summary and, through
   # tee, to the job log, which is what `gh run view --log` and the API can read (the API has no endpoint for summaries).
@@ -204,7 +253,8 @@ jobs:
   # the game data for nothing. Trivy sees the Debian packages; the libraries bundled in the STK binary (bullet, enet, mcpp) and
   # the game data are not in its scope.
   scan:
-    needs: merge
+    needs: [compare, merge]
+    if: ${{ !cancelled() && needs.compare.result == 'success' && (needs.merge.result == 'success' || needs.compare.outputs.unchanged == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: true
@@ -223,7 +273,7 @@ jobs:
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           TRIVY_PLATFORM: ${{ matrix.platform }}
         with:
-          image-ref: ${{ env.IMAGE }}@${{ needs.merge.outputs.digest }}
+          image-ref: ${{ env.IMAGE }}@${{ needs.merge.outputs.digest || needs.compare.outputs.current }}
           scanners: vuln
           format: table
           output: trivy-report.txt
@@ -233,7 +283,7 @@ jobs:
       - name: Report in the job summary
         if: ${{ !cancelled() }}
         env:
-          DIGEST: ${{ needs.merge.outputs.digest }}
+          DIGEST: ${{ needs.merge.outputs.digest || needs.compare.outputs.current }}
           PLATFORM: ${{ matrix.platform }}
         run: |
           {
