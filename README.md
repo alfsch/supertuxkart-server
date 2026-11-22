@@ -202,7 +202,9 @@ can block for minutes there (the test shares the server's network namespace inst
   cosign (keyless; the job has `id-token: write`). It then pulls the result on both architectures, verifies the signature and
   runs the smoke test, and, except for the weekly run, creates the GitHub release `v<release number>` (the only job with
   `contents: write`). The weekly run takes a release number too, so without a change it is an image identical to the last
-  one, without a GitHub release.
+  one, without a GitHub release. A report-only [Trivy](https://trivy.dev) scan of the signed digest runs on both architectures
+  (fixable HIGH and CRITICAL vulnerabilities of the Debian packages; the report is in the job summary and never fails the run).
+  It does not see the libraries bundled in the STK binary or the game data.
 - `test.yaml`: on pull requests, builds both architectures without pushing and runs the smoke test.
 - `prune.yaml`: weekly, keeps the newest 5 images (by dated tag or release number) and everything younger than 30 days
   (`prune-images.sh`; by hand it is a dry run unless switched off). The newest image carries `latest`, so it always stays and
