@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<!--
+  Mount this as /config/server_config.xml (read-only is fine) to take over from the STK_* variables: they are ignored then,
+  except STK_START_DELAY and STK_DISCOVERY_PORT. LAN or WAN is what wan-server says below.
+
+  The option names, values and comments are adapted from the server configuration in NETWORKING.md of the SuperTuxKart
+  sources (GPL-3.0-or-later), so this file is under that license, not the repository's MIT one. Only the options that matter
+  for a server filled with bots are listed: everything else keeps STK's default, and the full list is in NETWORKING.md.
+-->
+<server-config version="6" >
+    <server-name value="STK Server" />
+
+    <!-- 0 means the port from stk_config.xml, which is 2759 (UDP). LAN discovery always uses 2757 (UDP). -->
+    <server-port value="0" />
+
+    <!-- 3 normal race, 4 time trial, 6 soccer, 7 free for all, 8 capture the flag (0 and 1 are grand prix) -->
+    <server-mode value="3" />
+
+    <!-- 0 beginner, 1 intermediate, 2 expert, 3 supertux -->
+    <server-difficulty value="1" />
+
+    <!-- true for the STK online server list: needs a saved login, which the entrypoint makes from STK_ONLINE_USER and STK_ONLINE_PASSWORD_FILE -->
+    <wan-server value="false" />
+
+    <server-max-players value="8" />
+
+    <!-- empty for no password -->
+    <private-server-password value="" />
+
+    <!-- Nobody owns the lobby: the game starts by itself, which a server without a human owner needs. -->
+    <owner-less value="true" />
+
+    <!-- Seconds to wait before kart selection starts once min-start-game-players are connected. -->
+    <start-game-counter value="20" />
+    <min-start-game-players value="2" />
+
+    <!-- More than 0: laps = max(1, ratio * default laps of the track). -1 keeps the default. -->
+    <auto-game-time-ratio value="-1" />
+
+    <!-- The server adds bots started with the network-ai option and removes one for every human that joins. -->
+    <ai-handling value="true" />
+
+    <!-- Bots are accepted from the LAN only unless this is true. -->
+    <ai-anywhere value="false" />
+</server-config>

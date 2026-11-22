@@ -1,0 +1,49 @@
+name: Test image
+
+# Builds the image for the runner's own architecture without publishing it and runs a server with bots against it
+# (.github/scripts/smoke-test.sh). This is the check a Renovate update of the Debian base image has to pass before it merges
+# itself (renovate.json), so it runs on both architectures: a base image that breaks only on arm64 must not get through.
+# The build reads the cache that publish.yaml fills; it does not write to it.
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - entrypoint.sh
+      - healthcheck.sh
+      - LICENSE
+      - .github/scripts/smoke-test.sh
+      - .github/workflows/test.yaml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: stk-test:local
+          cache-from: type=gha,scope=build-${{ matrix.arch }}
+      - name: Server and bots
+        run: .github/scripts/smoke-test.sh stk-test:local

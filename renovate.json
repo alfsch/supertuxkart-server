@@ -1,0 +1,22 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Digest-pins the Docker base images and the GitHub Actions. The Debian base image updates itself (digest, minor and patch) once the build check passes; a new Debian release (major) and every action update wait for a manual merge.",
+  "extends": ["config:best-practices"],
+  "packageRules": [
+    {
+      "description": "Debian base image: security fixes arrive as digest updates of trixie-slim",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["debian"],
+      "matchUpdateTypes": ["pin", "pinDigest", "digest", "minor", "patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "A new Debian release (trixie to forky) changes the library package names of the runtime stage",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["debian"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    }
+  ]
+}
