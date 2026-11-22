@@ -1,17 +1,22 @@
 name: Publish image
 
 # Builds the SuperTuxKart server (Dockerfile, SERVER_ONLY) for amd64 and arm64 and publishes it to
-# ghcr.io/alfsch/supertuxkart-server under three tags: `latest`, the STK version (`1.5`) and a dated one (`1.5-20261122`).
-# The dated tag is what prune.yaml works on and what a deployment can pin.
+# ghcr.io/alfsch/supertuxkart-server under four tags: `latest`, the STK version (`1.5`), a dated one (`1.5-20261122`) and a
+# release number (`1.5.3`). Every publish gets the next release number of its STK version (.github/scripts/next-patch.sh: one
+# above the highest `1.5.<n>` tag in the registry, starting at `.0`), so the last number counts the releases of that STK
+# version, and an automatic one, such as the merge of a Renovate update of the Debian base image, is a new patch level.
+# A deployment can pin the release number or the dated tag; prune.yaml works on both.
 #
 # STK_VERSION is the default of the ARG in the Dockerfile, with the sha256 of that release's source tarball next to it.
 # workflow_dispatch can build another release (stk_version): the checksum is then read from the GitHub release. Clients and
 # servers of different STK major versions do not play together, so change the default only when the players update.
 #
-# The weekly run rebuilds to pick up Debian base updates. It uses the build cache, so the C++ build only runs again when
-# the base image or the sources changed (`pull: true` makes a new base image invalidate it). The package is private until
-# it is made public once by hand (GitHub: Packages > supertuxkart-server > Package settings > Change visibility), and it is
-# linked to this repository there as well. Cron times are UTC.
+# The weekly run rebuilds as well and takes the next release number too. It uses the build cache, so the C++ build only runs
+# again when the base image or the sources changed (`pull: true` makes a new base image invalidate it). With the base image
+# pinned by digest (Renovate) a weekly release is therefore identical to the last one unless something changed.
+#
+# The package is public and linked to this repository (GitHub: Packages > supertuxkart-server > Package settings). Cron
+# times are UTC.
 on:
   push:
     branches: [main]
@@ -21,6 +26,7 @@ on:
       - healthcheck.sh
       - LICENSE
       - .github/scripts/smoke-test.sh
+      - .github/scripts/next-patch.sh
       - .github/workflows/publish.yaml
   schedule:
     - cron: "23 3 * * 1"
@@ -49,6 +55,7 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
       sha256: ${{ steps.meta.outputs.sha256 }}
       date: ${{ steps.meta.outputs.date }}
+      patch: ${{ steps.meta.outputs.patch }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -69,10 +76,13 @@ jobs:
               --jq ".assets[] | select(.name == \"SuperTuxKart-$version-src.tar.gz\") | .digest" | sed 's/^sha256://')"
           fi
           [[ "$sha256" =~ ^[0-9a-f]{64}$ ]] || { echo "no sha256 for STK $version" >&2; exit 1; }
+          patch="$version.$(.github/scripts/next-patch.sh "$IMAGE" "$version")"
+          echo "release number: $patch"
           {
             echo "version=$version"
             echo "sha256=$sha256"
             echo "date=$(date -u +%Y%m%d)"
+            echo "patch=$patch"
           } >> "$GITHUB_OUTPUT"
 
   # One native build per architecture (QEMU would make the C++ build take hours), pushed by digest and joined into one
@@ -153,13 +163,15 @@ jobs:
         env:
           VERSION: ${{ needs.meta.outputs.version }}
           DATE: ${{ needs.meta.outputs.date }}
+          PATCH: ${{ needs.meta.outputs.patch }}
         run: |
           cd "$RUNNER_TEMP/digests"
           sources="$(printf "$IMAGE@sha256:%s " *)"
           # shellcheck disable=SC2086
           docker buildx imagetools create \
-            -t "$IMAGE:latest" -t "$IMAGE:$VERSION" -t "$IMAGE:$VERSION-$DATE" $sources
-          docker buildx imagetools inspect "$IMAGE:$VERSION-$DATE"
+            -t "$IMAGE:latest" -t "$IMAGE:$VERSION" -t "$IMAGE:$VERSION-$DATE" -t "$IMAGE:$PATCH" $sources
+          docker buildx imagetools inspect "$IMAGE:$PATCH"
+          echo "published $IMAGE:$PATCH" >> "$GITHUB_STEP_SUMMARY"
 
   # What a user does: pull the published tag and run a server with bots, on both architectures, on a clean runner with
   # no local copy of the image.
