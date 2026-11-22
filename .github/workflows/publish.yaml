@@ -5,7 +5,8 @@ name: Publish image
 # release number (`1.5.3`). Every publish gets the next release number of its STK version (.github/scripts/next-patch.sh: one
 # above the highest `1.5.<n>` tag in the registry, starting at `.0`), so the last number counts the releases of that STK
 # version, and an automatic one, such as the merge of a Renovate update of the Debian base image, is a new patch level.
-# A deployment can pin the release number or the dated tag; prune.yaml works on both.
+# A deployment can pin the release number or the dated tag; prune.yaml works on both. Each release number also gets a GitHub
+# release (git tag `v1.5.3`), except those of the weekly run.
 #
 # STK_VERSION is the default of the ARG in the Dockerfile, with the sha256 of that release's source tarball next to it.
 # workflow_dispatch can build another release (stk_version): the checksum is then read from the GitHub release. Clients and
@@ -144,6 +145,8 @@ jobs:
     needs: [meta, build]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      digest: ${{ steps.create.outputs.digest }}
     permissions:
       contents: read
       packages: write
@@ -160,6 +163,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create the multi-arch tags
+        id: create
         env:
           VERSION: ${{ needs.meta.outputs.version }}
           DATE: ${{ needs.meta.outputs.date }}
@@ -171,6 +175,7 @@ jobs:
           docker buildx imagetools create \
             -t "$IMAGE:latest" -t "$IMAGE:$VERSION" -t "$IMAGE:$VERSION-$DATE" -t "$IMAGE:$PATCH" $sources
           docker buildx imagetools inspect "$IMAGE:$PATCH"
+          echo "digest=$(docker buildx imagetools inspect "$IMAGE:$PATCH" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
           echo "published $IMAGE:$PATCH" >> "$GITHUB_STEP_SUMMARY"
 
   # What a user does: pull the published tag and run a server with bots, on both architectures, on a clean runner with
@@ -199,3 +204,39 @@ jobs:
         env:
           TAG: ${{ needs.meta.outputs.version }}-${{ needs.meta.outputs.date }}
         run: .github/scripts/smoke-test.sh "$IMAGE:$TAG"
+
+  # The GitHub release for the numbered image (git tag v<release number>, notes generated from the merged PRs since the last
+  # release), once the published tag has passed the smoke test on both architectures. The weekly run is left out: it still
+  # takes a release number, so its image has a tag but no GitHub release, and the releases skip those numbers. This is the only
+  # job that writes to the repository; releases made with GITHUB_TOKEN start no other workflow.
+  release:
+    needs: [meta, merge, smoke]
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.meta.outputs.version }}
+          DATE: ${{ needs.meta.outputs.date }}
+          PATCH: ${{ needs.meta.outputs.patch }}
+          DIGEST: ${{ needs.merge.outputs.digest }}
+        run: |
+          # a re-run of this job alone must not fail on the release it made before
+          if gh release view "v$PATCH" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release v$PATCH exists already"
+            exit 0
+          fi
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "no image digest to name in the notes: '$DIGEST'" >&2; exit 1; }
+          notes="$(printf '%s\n' \
+            "Container image \`$IMAGE:$PATCH\` (SuperTuxKart $VERSION, linux/amd64 and linux/arm64)." \
+            "" \
+            "- digest: \`$DIGEST\`" \
+            "- also tagged \`latest\`, \`$VERSION\` and \`$VERSION-$DATE\`" \
+            "- source: \`$GITHUB_SHA\`" \
+            "")"
+          gh release create "v$PATCH" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$PATCH" --notes "$notes" --generate-notes

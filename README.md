@@ -13,7 +13,9 @@ ghcr.io/alfsch/supertuxkart-server:1.5-20261122  the build of one day, for pinni
 
 Every publish takes the next release number of its STK version: `1.5.0`, `1.5.1`, and so on, one above the highest `1.5.<n>`
 tag in the registry. Whatever changes the image, for example the automatic merge of a Renovate update of the Debian base
-image, is therefore a new patch level, and a new STK version starts again at `.0`.
+image, is therefore a new patch level, and a new STK version starts again at `.0`. Each release number also gets a
+[GitHub release](https://github.com/alfsch/supertuxkart-server/releases) (git tag `v1.5.3`) with the image digest and the
+merged PRs since the last release, except the numbers taken by the weekly run: those images have a tag, but no release.
 
 Clients and servers of different STK major versions do not play together: use the tag that matches what your players run.
 
@@ -179,8 +181,9 @@ can block for minutes there (the test shares the server's network namespace inst
 - `publish.yaml`: on a push to `main` that touches the build, weekly (Monday), or by hand with an optional `stk_version`
   (the checksum is then read from the release). Builds natively on amd64 and arm64 runners (no QEMU), pushes by digest,
   merges into the four tags (the release number comes from `.github/scripts/next-patch.sh`), then pulls the result and runs the
-  smoke test on both architectures. The weekly run takes a release number too, so without a change it is a release identical to
-  the last one.
+  smoke test on both architectures, and, except for the weekly run, creates the GitHub release `v<release number>` (the only
+  job with `contents: write`). The weekly run takes a release number too, so without a change it is an image identical to the
+  last one, without a GitHub release.
 - `test.yaml`: on pull requests, builds both architectures without pushing and runs the smoke test.
 - `prune.yaml`: weekly, keeps the newest 5 images (by dated tag or release number) and everything younger than 30 days
   (`prune-images.sh`; by hand it is a dry run unless switched off). The newest image carries `latest`, so it always stays and
