@@ -125,7 +125,7 @@ needs UDP broadcast, and published ports would bypass the host firewall.
 | `STK_DISCOVERY_PORT` | `2757` | the UDP port the start delay waits for. STK itself always uses 2757. |
 
 Also accepted, beyond the interface: `STK_OWNER_LESS` (`true`: nobody owns the lobby, the game starts by itself),
-`STK_MIN_PLAYERS` (`2`), `STK_START_COUNTER` (`20`, seconds of countdown), `STK_LAPS_RATIO` (`-1`; above 0 the laps are
+`STK_MIN_PLAYERS` (`1`: humans needed before the countdown starts; bots do not count with `STK_AI_HANDLING=true`, see "Bots"), `STK_START_COUNTER` (`20`, seconds of countdown), `STK_LAPS_RATIO` (`-1`; above 0 the laps are
 max(1, ratio × the track's default)), `STK_CONSOLE` (set to enable STK's network console, which needs `docker run -i`:
 without stdin it spins at 100% of a core), and `STK_EXTRA_ARGS` (more flags for the binary, split on whitespace).
 
@@ -200,7 +200,11 @@ Docker Compose's `depends_on: condition: service_healthy` only orders `docker co
   and capture the flag. Soccer, ffa and ctf add server-side fill karts (14, 8 and 14 karts in total with 3 bots).
 - **`STK_AI_HANDLING=true` (the default):** according to STK the server removes one bot for every human that joins (not tested
   here), and **a lobby with only bots waits for a human** instead of racing against itself (tested). That is what you want on a
-  household server.
+  household server. The countdown starts when `STK_MIN_PLAYERS` humans are in the lobby, so the default of 1 lets one human race
+  against the bots; with 2 (the default before 1.5.9) one human waits for ever.
+- **Soccer, free-for-all and capture the flag:** with `STK_AI_HANDLING=true` STK keeps the bots out of these modes (only normal
+  race and time trial take them), so a game there needs `STK_MIN_PLAYERS` humans. For one human against bots in such a mode use
+  `STK_AI_HANDLING=false`.
 - **`STK_AI_HANDLING=false`:** the bots start games on their own: with a 10 s countdown a race began 30 s after they joined, so
   with the default `STK_START_COUNTER=20` expect about 40 s.
 - **Reaching the server:** STK itself retries four times and then idles, and it keeps idling when its server goes away, so a

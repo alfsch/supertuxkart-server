@@ -72,7 +72,7 @@ case "$mode" in
       is_bool "$owner_less" || die "STK_OWNER_LESS must be true or false, got '$owner_less'"
       start_counter="${STK_START_COUNTER:-20}"
       is_uint "$start_counter" || die "STK_START_COUNTER must be a number, got '$start_counter'"
-      min_players="${STK_MIN_PLAYERS:-2}"
+      min_players="${STK_MIN_PLAYERS:-1}"
       is_uint "$min_players" || die "STK_MIN_PLAYERS must be a number, got '$min_players'"
       laps_ratio="${STK_LAPS_RATIO:--1}"
       is_ratio "$laps_ratio" || die "STK_LAPS_RATIO must be -1 or a number of at least 0, got '$laps_ratio'"

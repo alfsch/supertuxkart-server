@@ -30,9 +30,9 @@
     <!-- Nobody owns the lobby: the game starts by itself, which a server without a human owner needs. -->
     <owner-less value="true" />
 
-    <!-- Seconds to wait before kart selection starts once min-start-game-players are connected. -->
+    <!-- Seconds to wait before kart selection starts once min-start-game-players humans are connected (with ai-handling true the bots do not count). -->
     <start-game-counter value="20" />
-    <min-start-game-players value="2" />
+    <min-start-game-players value="1" />
 
     <!-- More than 0: laps = max(1, ratio * default laps of the track). -1 keeps the default. -->
     <auto-game-time-ratio value="-1" />

@@ -83,7 +83,7 @@ expect_error "STK_ONLINE_PASSWORD_FILE=/nonexistent is not readable" STK_MODE=se
 # --- server: the generated config
 run STK_MODE=server
 expect_in_output "defaults" 'server-port value="2759"' 'server-mode value="3"' 'server-difficulty value="1"' 'wan-server value="false"' \
-  'server-max-players value="8"' 'owner-less value="true"' 'start-game-counter value="20"' 'min-start-game-players value="2"' \
+  'server-max-players value="8"' 'owner-less value="true"' 'start-game-counter value="20"' 'min-start-game-players value="1"' \
   'auto-game-time-ratio value="-1"' 'ai-handling value="true"' 'server-name value="STK Server"' \
   "--server-config=/home/stk/server_config.xml"
 
