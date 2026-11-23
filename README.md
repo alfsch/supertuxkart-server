@@ -223,7 +223,11 @@ docker build -t stk-server:local .                   # ~10 minutes for the C++ b
 
 The build downloads `SuperTuxKart-<version>-src.tar.gz` from the GitHub release (it contains the game data, the tag archive
 does not) and checks its sha256 (`STK_SHA256` in the [Dockerfile](Dockerfile), the digest GitHub lists for that asset). The
-image is about **890 MB uncompressed**, almost all of it game data. Whether a server can do without parts of it was not tested.
+image is about **150 MB** of STK data and binary (the first releases had about 890 MB): the server never reads the game's images,
+audio or fonts, so the build empties those files (zero length, not deleted, because STK checks that they exist) and keeps what the
+server opens: models, XML, scripts, music metadata and the kart icons. In five traced games, one per mode, the server opened
+no image, audio or font file apart from one kart icon. Games with bots in all five modes ran the same on the pruned image as on the full
+one; a human client was not tried (it loads its own data and does not need the server's).
 
 The smoke test needs a Docker daemon. On a rootless one, avoid user-defined networks: starting a second container on one
 can block for minutes there (the test shares the server's network namespace instead).
@@ -272,7 +276,9 @@ under the [MIT License](LICENSE).
 
 The published container image contains [SuperTuxKart](https://supertuxkart.net),
 built unmodified from the official source release
-[`1.5`](https://github.com/supertuxkart/stk-code/releases/tag/1.5):
+[`1.5`](https://github.com/supertuxkart/stk-code/releases/tag/1.5). Only the installed game data is pruned: the image, audio and
+font files of the game are emptied (see "Build and test locally"), because the server does not use them. The image therefore
+does not contain those assets, only the license texts, credits and the data the server reads:
 
 - SuperTuxKart's code is licensed under the **GNU GPL v3.0 or later**.
 - Its game data (tracks, karts, music, textures) is under various free licenses,
