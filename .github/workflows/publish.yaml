@@ -17,9 +17,11 @@ name: Publish image
 # servers of different STK major versions do not play together, so change the default only when the players update.
 #
 # The weekly run rebuilds as well. It uses the build cache, so the C++ build only runs again when the base image or the sources
-# changed (`pull: true` makes a new base image invalidate it), and a cached build gives the same image digests, so the weekly
-# run is then only a scan. When the cache is gone (GitHub drops caches that were not used for seven days) the image is built
-# again from scratch, its digests differ, and it is released with fresh packages, without a GitHub release as before.
+# changed (`pull: true` makes a new base image invalidate it). The apt layer of the runtime stage is rebuilt once a week: the
+# first publish of a new ISO week passes it a new APT_REFRESH (the `week` output below), so the Debian packages are current
+# even while the cache holds. If a package was updated meanwhile the image differs and is released (without a GitHub release
+# when it is the weekly run); if nothing changed, the digests are the same and the run is only a scan. When the cache is gone
+# (GitHub drops caches that were not used for seven days) the image is built again from scratch and is released the same way.
 #
 # The merged index (what every tag points at) is signed keylessly with cosign (Sigstore): the signature binds the image digest
 # to this workflow on main. The identity to verify is https://github.com/alfsch/supertuxkart-server/.github/workflows/publish.yaml@refs/heads/main
@@ -76,6 +78,7 @@ jobs:
       sha256: ${{ steps.meta.outputs.sha256 }}
       date: ${{ steps.meta.outputs.date }}
       patch: ${{ steps.meta.outputs.patch }}
+      week: ${{ steps.meta.outputs.week }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -102,6 +105,7 @@ jobs:
             echo "version=$version"
             echo "sha256=$sha256"
             echo "date=$(date -u +%Y%m%d)"
+            echo "week=$(date -u +%G-W%V)"
             echo "patch=$patch"
           } >> "$GITHUB_OUTPUT"
 
@@ -144,6 +148,7 @@ jobs:
           build-args: |
             STK_VERSION=${{ needs.meta.outputs.version }}
             STK_SHA256=${{ needs.meta.outputs.sha256 }}
+            APT_REFRESH=${{ needs.meta.outputs.week }}
           cache-from: type=gha,scope=build-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=build-${{ matrix.arch }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true

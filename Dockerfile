@@ -46,7 +46,12 @@ LABEL org.opencontainers.image.title="supertuxkart-server" \
       org.opencontainers.image.source="https://github.com/alfsch/supertuxkart-server" \
       org.opencontainers.image.version="${STK_VERSION}" \
       org.opencontainers.image.licenses="GPL-3.0-or-later"
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# set by publish.yaml to the year and week: the apt layer below is rebuilt at most once a week, so a security update of the
+# Debian packages reaches the image even while the build cache holds it (the C++ build stage stays cached). It is not the day:
+# a new value every day would make every publish a new image and defeat the check for unchanged builds.
+ARG APT_REFRESH=none
+RUN : "packages of ${APT_REFRESH}" \
+ && apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates libcurl4t64 libssl3t64 zlib1g libsqlite3-0 \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --system --create-home --home-dir /home/stk stk
