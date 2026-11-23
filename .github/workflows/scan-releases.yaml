@@ -1,0 +1,146 @@
+name: Scan releases
+
+# Scans every release image that is still in the registry (`1.5.0`, `1.5.1`, ... as .github/scripts/release-images.sh finds them;
+# releases that share an image are scanned once) with Trivy every day, and reports the result where a user looks for the image they run:
+#
+#   - the notes of each GitHub release get a "Vulnerabilities" block (between two HTML comments, replaced on every run), and
+#   - the branch `scan-reports` holds an index of all releases (README.md) and a page per image (details/<id>.md), one commit a day.
+#
+# scan.yaml is the other daily scan: it sends only what `latest` points at to GitHub code scanning, which tracks the state of the
+# default branch. Old images do not belong there: their alerts could never close and would hide the current ones.
+#
+# Same settings as the other scans: fixable HIGH and CRITICAL vulnerabilities of the Debian packages (the libraries compiled into the STK
+# binary and the game data are not covered), a fresh vulnerability database for every scan (cache: false, see scan.yaml), findings never
+# fail the run, an error does (a missing result is never shown as clean, see scan-report.sh). Only the `report` job writes to the
+# repository (the branch and the release notes). A release that was pruned from the registry drops out of the index; its release page keeps
+# the last block. Cron times are UTC.
+on:
+  schedule:
+    - cron: "47 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scan-releases
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/alfsch/supertuxkart-server
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+      scan_matrix: ${{ steps.list.outputs.scan_matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: list
+        run: |
+          matrix="$(.github/scripts/release-images.sh "$IMAGE")"
+          jq -r '.[] | "\(.platform) \(.digest) \(.tags | join(","))"' <<<"$matrix"
+          {
+            echo "matrix=$(jq -c . <<<"$matrix")"
+            echo "scan_matrix=$(jq -c '[.[] | {id, platform, digest}]' <<<"$matrix")"
+          } >> "$GITHUB_OUTPUT"
+
+  scan:
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.images.outputs.scan_matrix) }}
+    steps:
+      # Trivy scans one platform of an index (the host's by default), so the platform image is named by its own digest as well.
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: ${{ matrix.platform }}
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ matrix.digest }}
+          scanners: vuln
+          format: json
+          output: ${{ matrix.id }}.json
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          cache: false   # a cached vulnerability database counts as fresh for 24 hours and hid known CVEs; download the current one
+          exit-code: "0"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scan-${{ matrix.id }}
+          path: ${{ matrix.id }}.json
+          if-no-files-found: error
+          retention-days: 1
+
+  report:
+    needs: [images, scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write   # the scan-reports branch and the release notes
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/scans
+          pattern: scan-*
+          merge-multiple: true
+      - name: Build the report
+        env:
+          MATRIX: ${{ needs.images.outputs.matrix }}
+        run: |
+          printf '%s\n' "$MATRIX" > "$RUNNER_TEMP/matrix.json"
+          .github/scripts/scan-report.sh build "$RUNNER_TEMP/matrix.json" "$RUNNER_TEMP/scans" "$RUNNER_TEMP/report" "$(date -u +%F)"
+          cat "$RUNNER_TEMP/report/README.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish the report on the scan-reports branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          b64="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$b64"
+          auth=(-c "http.https://github.com/.extraheader=AUTHORIZATION: basic $b64")
+          rm -rf "$RUNNER_TEMP/branch" && mkdir "$RUNNER_TEMP/branch" && cd "$RUNNER_TEMP/branch"
+          git init -q
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY"
+          if git "${auth[@]}" ls-remote --exit-code --heads origin scan-reports >/dev/null 2>&1; then
+            git "${auth[@]}" fetch -q --depth 1 origin scan-reports
+            git checkout -q -B scan-reports FETCH_HEAD
+          else
+            git checkout -q --orphan scan-reports
+          fi
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -r "$RUNNER_TEMP/report/README.md" "$RUNNER_TEMP/report/details" .
+          git add -A
+          if git diff --cached --quiet; then
+            echo "the report did not change"
+          else
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Scan report $(date -u +%F)"
+            git "${auth[@]}" push -q origin scan-reports
+          fi
+      - name: Update the release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for block in "$RUNNER_TEMP"/report/release-blocks/*.md; do
+            tag="$(basename "$block" .md)"
+            # a release number taken by a weekly run has an image tag but no GitHub release
+            if ! body="$(gh release view "v$tag" --repo "$GITHUB_REPOSITORY" --json body --jq .body 2>&1)"; then
+              case "$body" in
+                *"not found"*) echo "no release v$tag"; continue ;;
+                *) echo "$body" >&2; exit 1 ;;
+              esac
+            fi
+            printf '%s\n' "$body" | .github/scripts/scan-report.sh merge "$block" > "$RUNNER_TEMP/notes.md"
+            gh release edit "v$tag" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/notes.md"
+            echo "updated v$tag"
+          done
