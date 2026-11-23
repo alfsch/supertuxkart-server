@@ -229,6 +229,11 @@ can block for minutes there (the test shares the server's network namespace inst
   (fixable HIGH and CRITICAL vulnerabilities of the Debian packages; the report is in the job summary and never fails the run;
   for an unchanged build it scans the image that is already published). It does not see the libraries bundled in the STK binary
   or the game data.
+- `scan.yaml`: every day (05:17 UTC) it scans the image `latest` points at with Trivy, on both architectures, and sends the
+  result to GitHub code scanning: the findings are under Security, Code scanning, with a history, and an alert closes by itself
+  once a scan no longer finds it. Same scope as the scan above (fixable HIGH and CRITICAL findings of the Debian packages), and it
+  never fails the run on findings, only on an error of the scan itself. The Trivy database changes daily, so it finds CVEs filed
+  against an image that has not changed; a finding with a fix stays until a new image is built.
 - `test.yaml`: on pull requests, builds both architectures without pushing and runs the smoke test.
 - `prune.yaml`: weekly, keeps the newest 5 images (by dated tag or release number) and everything younger than 30 days
   (`prune-images.sh`; by hand it is a dry run unless switched off). The newest image carries `latest`, so it always stays and
