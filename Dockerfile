@@ -21,12 +21,17 @@ RUN curl -fsSL -o /tmp/stk-src.tar.gz \
  && tar xzf /tmp/stk-src.tar.gz --strip-components=1 \
  && rm /tmp/stk-src.tar.gz
 
+# hardening: stack protector, fortified libc calls and full RELRO (Debian's GCC enables only PIE by default); the binary is stripped
 # bundled enet/bullet/mcpp are used on purpose: one build, same result on amd64 and arm64
 RUN cmake -S /src -B /build \
       -DSERVER_ONLY=ON -DUSE_SYSTEM_ENET=OFF -DUSE_SYSTEM_MCPP=OFF \
       -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/stk \
+      -DCMAKE_C_FLAGS="-fstack-protector-strong -D_FORTIFY_SOURCE=2" \
+      -DCMAKE_CXX_FLAGS="-fstack-protector-strong -D_FORTIFY_SOURCE=2" \
+      -DCMAKE_EXE_LINKER_FLAGS="-Wl,-z,relro,-z,now" \
  && cmake --build /build -j"$(nproc)" \
- && cmake --install /build
+ && cmake --install /build \
+ && strip --strip-unneeded /opt/stk/bin/supertuxkart
 
 # upstream license texts: the GPL itself, the per-asset license files of the game data, and the credits
 RUN mkdir -p /opt/stk/share/doc/supertuxkart \
