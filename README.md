@@ -224,8 +224,10 @@ can block for minutes there (the test shares the server's network namespace inst
   runs the smoke test, and, except for the weekly run, creates the GitHub release `v<release number>` (the only job with
   `contents: write`). A `compare` job first checks whether the build changed the image at all
   (`.github/scripts/image-unchanged.sh`): if not, tags, signature, smoke test and release are skipped. The weekly run is
-  therefore only a scan while the build cache holds; when GitHub has dropped the cache (after seven days unused) the image is
-  built afresh with current packages, takes a release number, and gets no GitHub release. A report-only [Trivy](https://trivy.dev) scan of the signed digest runs on both architectures
+  therefore only a scan when nothing changed. The apt layer of the runtime stage is rebuilt once a week (`APT_REFRESH`, the
+  ISO week, a build argument of the first publish of each week), so a Debian security update reaches the image even while the
+  build cache holds; then the image differs, takes a release number, and, as a weekly run, gets no GitHub release. The same
+  happens when GitHub has dropped the cache (after seven days unused). A report-only [Trivy](https://trivy.dev) scan of the signed digest runs on both architectures
   (fixable HIGH and CRITICAL vulnerabilities of the Debian packages; the report is in the job summary and never fails the run;
   for an unchanged build it scans the image that is already published). It does not see the libraries bundled in the STK binary
   or the game data.
