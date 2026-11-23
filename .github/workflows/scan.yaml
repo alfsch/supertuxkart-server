@@ -1,0 +1,90 @@
+name: Scan image
+
+# Scans the published image (what `latest` points at) with Trivy every day and sends the result to GitHub code scanning: the
+# findings are on the Security tab, Code scanning, with severity filters and a history, and an alert closes by itself when a
+# later scan no longer finds it. The Trivy database is updated daily, so this finds CVEs filed against the packages of an image
+# that has not changed since; the scan in publish.yaml only runs when an image is published (and weekly).
+#
+# Report only, as in publish.yaml: the findings never fail the run (exit-code 0). A scanner, database, registry or upload error
+# does fail it, on purpose: a scan that stops working silently is worse than a failed run.
+#
+# Only fixable HIGH and CRITICAL vulnerabilities of the Debian packages are reported (ignore-unfixed). Trivy does not see the
+# libraries bundled in the STK binary (bullet, enet, mcpp) or the game data. A finding with a fix stays until a new image is
+# built: the build cache can keep the apt layer, so a rebuild picks up new package versions when the base image digest changes
+# or the cache has expired. Cron times are UTC.
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scan
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/alfsch/supertuxkart-server
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      digest: ${{ steps.digest.outputs.digest }}
+    steps:
+      - id: digest
+        run: |
+          # the package is public: no login needed
+          digest="$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{json .Manifest}}' | jq -r .digest)"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "no digest for $IMAGE:latest: '$digest'" >&2; exit 1; }
+          echo "scanning $IMAGE@$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  scan:
+    needs: digest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write   # uploads the SARIF report to code scanning
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Trivy scans one platform of an index (the host's by default), so the platform is named. Only the vulnerability scanner
+      # runs: the secret scanner would read all the game data for nothing.
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: ${{ matrix.platform }}
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ needs.digest.outputs.digest }}
+          scanners: vuln
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
+          ignore-unfixed: true
+          exit-code: "0"
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-${{ matrix.platform }}
+      - name: Summary
+        env:
+          DIGEST: ${{ needs.digest.outputs.digest }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          count="$(jq '[.runs[].results[]?] | length' trivy-results.sarif)"
+          {
+            echo "### Trivy: $IMAGE@$DIGEST ($PLATFORM)"
+            echo
+            echo "$count fixable HIGH or CRITICAL finding(s) in the Debian packages. Details: Security, Code scanning (category \`trivy-$PLATFORM\`)."
+          } | tee -a "$GITHUB_STEP_SUMMARY"
