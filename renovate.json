@@ -39,6 +39,11 @@
       "platformAutomerge": false
     },
     {
+      "description": "Runner labels (ubuntu-24.04 in the lint job): the names of the two required checks contain ubuntu-24.04 and ubuntu-24.04-arm (.github/rulesets/protect-main.json), so a runner bump is a manual change that renames them; and actionlint knows the labels only up to its own release",
+      "matchDatasources": ["github-runners"],
+      "enabled": false
+    },
+    {
       "description": "This repository's own image, which compose.example.yaml names with a tag on purpose (latest): pinning it by digest would mix a non-automerge update into the Debian pin PR and open a new PR after every publish, since every publish has a new digest",
       "matchPackageNames": ["ghcr.io/alfsch/supertuxkart-server"],
       "enabled": false
