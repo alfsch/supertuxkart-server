@@ -67,6 +67,7 @@ jobs:
           image-ref: ${{ env.IMAGE }}@${{ needs.digest.outputs.digest }}
           scanners: vuln
           format: sarif
+          cache: false   # a cached vulnerability database counts as fresh for 24 hours and hid known CVEs; download the current one
           output: trivy-results.sarif
           severity: HIGH,CRITICAL
           limit-severities-for-sarif: true

@@ -277,6 +277,7 @@ jobs:
           image-ref: ${{ env.IMAGE }}@${{ needs.merge.outputs.digest || needs.compare.outputs.current }}
           scanners: vuln
           format: table
+          cache: false   # a cached vulnerability database counts as fresh for 24 hours and hid known CVEs; download the current one
           output: trivy-report.txt
           severity: HIGH,CRITICAL
           ignore-unfixed: true
