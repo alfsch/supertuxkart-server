@@ -20,6 +20,8 @@ env_or_file() {
 }
 
 is_uint() { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
+# -1 (the default: the track's own laps) or a number of at least 0 with an optional decimal part
+is_ratio() { case "$1" in -1) return 0 ;; ''|.|*[!0-9.]*|*.*.*) return 1 ;; *) return 0 ;; esac; }
 is_bool() { case "$1" in true|false) return 0 ;; *) return 1 ;; esac; }
 
 xml_escape() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'; }
@@ -68,6 +70,12 @@ case "$mode" in
       is_bool "$ai_handling" || die "STK_AI_HANDLING must be true or false, got '$ai_handling'"
       owner_less="${STK_OWNER_LESS:-true}"
       is_bool "$owner_less" || die "STK_OWNER_LESS must be true or false, got '$owner_less'"
+      start_counter="${STK_START_COUNTER:-20}"
+      is_uint "$start_counter" || die "STK_START_COUNTER must be a number, got '$start_counter'"
+      min_players="${STK_MIN_PLAYERS:-2}"
+      is_uint "$min_players" || die "STK_MIN_PLAYERS must be a number, got '$min_players'"
+      laps_ratio="${STK_LAPS_RATIO:--1}"
+      is_ratio "$laps_ratio" || die "STK_LAPS_RATIO must be -1 or a number of at least 0, got '$laps_ratio'"
       password=$(env_or_file STK_SERVER_PASSWORD)
       cat > "$config" <<XML
 <?xml version="1.0"?>
@@ -80,9 +88,9 @@ case "$mode" in
     <server-max-players value="$max_players" />
     <private-server-password value="$(xml_escape "$password")" />
     <owner-less value="$owner_less" />
-    <start-game-counter value="${STK_START_COUNTER:-20}" />
-    <min-start-game-players value="${STK_MIN_PLAYERS:-2}" />
-    <auto-game-time-ratio value="${STK_LAPS_RATIO:--1}" />
+    <start-game-counter value="$start_counter" />
+    <min-start-game-players value="$min_players" />
+    <auto-game-time-ratio value="$laps_ratio" />
     <ai-handling value="$ai_handling" />
 </server-config>
 XML

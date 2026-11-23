@@ -182,10 +182,12 @@ the release.
 
 ## Not verified
 
-- A human joining: bots leaving as humans join (`STK_AI_HANDLING=true`), and a race started by a human. The `SERVER_ONLY`
-  binary cannot be a human client, so CI cannot do it either.
+- Bots leaving as humans join (`STK_AI_HANDLING=true`), and a race started by a human. A human has joined a server on a
+  Raspberry Pi (arm64), but these two were not checked. The `SERVER_ONLY` binary cannot be a human client, so CI cannot
+  do it either.
 - A WAN server (it needs an STK account).
-- arm64 at runtime: it is built and smoke-tested in CI only; everything above was run on amd64.
+- arm64 at runtime beyond that: CI builds and smoke-tests it, and a human join worked on a Pi, but the checks above were
+  run on amd64.
 
 ## Build and test locally
 
