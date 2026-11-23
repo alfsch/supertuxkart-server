@@ -56,6 +56,19 @@ signing was added, such as `1.5.0`, are not signed. The identity names the workf
 `publish.yaml` or publishing from another branch changes it. Nothing verifies on pull by itself: Docker and Watchtower do
 not check signatures, so a deployment that wants this has to run the command (or an admission policy) itself.
 
+## SBOM
+
+Every image published since the SBOM was added carries a software bill of materials, an SPDX attestation that BuildKit
+generates at build time and stores in the registry next to the image (for each platform, together with the SLSA provenance):
+
+```sh
+docker buildx imagetools inspect ghcr.io/alfsch/supertuxkart-server:1.5 --format '{{json .SBOM}}'
+```
+
+It lists the Debian packages of the image. It does not list the libraries compiled into the STK binary (bullet, enet,
+mcpp) or the game data. The attestation is not signed by itself; the signature of the image (above) covers the image
+index that refers to it.
+
 ## Quick start
 
 ```sh
