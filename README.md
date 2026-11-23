@@ -191,6 +191,50 @@ Docker Compose's `depends_on: condition: service_healthy` only orders `docker co
   server stops). A server on another host cannot be probed, so there the bots simply idle if it is not reachable.
 - Bots are accepted from the LAN only (loopback and private addresses count) unless `ai-anywhere` is set in a mounted config.
 
+### Pruned game data
+
+The image contains the STK game data, but the files a server never reads are emptied (zero length, not deleted). The build does this
+in the [Dockerfile](Dockerfile), right after `cmake --install`:
+
+| | |
+|---|---|
+| Emptied | every `*.png`, `*.jpg`, `*.ogg`, `*.ttf` and `*.otf` under `/opt/stk/share/supertuxkart/data`, except the kart icons `karts/*/*_icon.png` (3051 files, about 640 MB) |
+| Kept | models (`.spm`), XML, scripts (`.as`), music metadata (`.music`), challenges, grand prix files, translations, the kart icons |
+| Result | the STK data shrinks from 776 MB to 130 MB, and its compressed layer from 692 MB to 60 MB |
+
+The files are emptied and not removed because STK checks that they exist: in the traced games it looked for 896 PNGs, 105 JPGs, 3 OGGs and
+11 fonts, and never opened them. The kart icons stay because the server opens one of them (`karts/tux/tux_icon.png`). This is
+about what a *server* reads: the `SERVER_ONLY` build has no graphics, audio or input stack. The license texts and credits do not come from
+this directory (the build copies them from the source tree), so they are complete.
+
+**How it was found out.** The server was run under `strace` in five games with bots, one per mode, and every file it touched under
+the game data was listed. Use an image from before the pruning (`1.5.7` or older), a game takes about three minutes:
+
+```sh
+printf 'FROM ghcr.io/alfsch/supertuxkart-server:1.5.7\nUSER root\nRUN apt-get update && apt-get install -y --no-install-recommends strace\nUSER stk\n' \
+  | docker build -t stk-strace -
+docker run -d --name trace --cap-add SYS_PTRACE --entrypoint sh \
+  -e STK_MODE=server -e STK_GAME_MODE=normal-race -e STK_AI_HANDLING=false -e STK_OWNER_LESS=true \
+  -e STK_START_COUNTER=5 -e STK_MIN_PLAYERS=1 -e STK_LAPS_RATIO=0.2 stk-strace \
+  -c 'exec strace -f -qq -e trace=openat,open,stat,newfstatat,statx,access,faccessat,faccessat2 -o /tmp/trace.log /usr/local/bin/entrypoint.sh'
+docker run -d --network container:trace -e STK_MODE=bots -e STK_SERVER=127.0.0.1:2759 -e STK_BOTS=4 stk-strace
+# after about three minutes:
+docker stop trace && docker cp trace:/tmp/trace.log .
+grep -E 'openat|open\(' trace.log | grep -v ENOENT | grep -oE '/opt/stk/share/supertuxkart/data/[^"]*' | sort -u \
+  | grep -oE '\.[a-z0-9]+$' | sort | uniq -c | sort -rn      # files opened, by extension
+```
+
+Repeat it for `time-trial`, `soccer`, `ffa` and `ctf`. In the five traced games the server opened `.spm`, `.xml`, `.music`, `.challenge`, `.as`
+and `.grandprix` files and one PNG, and no other image, audio or font file.
+
+**Rechecking.** A new STK release can read more: run the trace again on the new image before the `find` in the Dockerfile is
+trusted (step 4 of "Updating STK"). `smoke-test.sh` would not notice: a server that fails to decode an emptied file only does so
+when a game loads it. To get the full data back, use a release up to `1.5.7`, or remove the `RUN cd ... find ... truncate` step from
+the Dockerfile and build the image yourself.
+
+**Limits.** Bots played all five modes on the pruned image as on the full one (same worlds loaded, same games finished, no new
+errors). A human client was not tried against the pruned image, and only a few of the 45 tracks were loaded.
+
 ## Updating STK
 
 Renovate opens a PR (label `stk-release`, never merged by itself) when STK publishes a new plain release. Merge it only
@@ -201,6 +245,7 @@ once your players have the matching client: clients and servers of different maj
    lists for `SuperTuxKart-<version>-src.tar.gz` (releases from 2025 on have one; a release that ships another file name or
    format needs the Dockerfile adjusted first). Compare it with the release page if it matters to you.
 3. Update by hand what Renovate does not touch: the release link and the example tags in this README.
+4. Trace the new image as described in "Pruned game data": if the server now opens images, audio or fonts, adjust the `find` in the Dockerfile.
 
 A one-off build of another release does not need a PR: `publish.yaml` takes `stk_version` by hand and reads the checksum from
 the release.
@@ -210,6 +255,7 @@ the release.
 - Bots leaving as humans join (`STK_AI_HANDLING=true`), and a race started by a human. A human has joined a server on a
   Raspberry Pi (arm64), but these two were not checked. The `SERVER_ONLY` binary cannot be a human client, so CI cannot
   do it either.
+- A human client against the pruned image (the human join on the Pi was before the pruning), and all 45 tracks (a few were loaded).
 - A WAN server (it needs an STK account).
 - arm64 at runtime beyond that: CI builds and smoke-tests it, and a human join worked on a Pi, but the checks above were
   run on amd64.
@@ -223,7 +269,8 @@ docker build -t stk-server:local .                   # ~10 minutes for the C++ b
 
 The build downloads `SuperTuxKart-<version>-src.tar.gz` from the GitHub release (it contains the game data, the tag archive
 does not) and checks its sha256 (`STK_SHA256` in the [Dockerfile](Dockerfile), the digest GitHub lists for that asset). The
-image is about **890 MB uncompressed**, almost all of it game data. Whether a server can do without parts of it was not tested.
+image is about **150 MB** of STK data and binary (the first releases had about 890 MB): the build empties the game's images, audio
+and fonts, which the server never reads. See "Pruned game data".
 
 The smoke test needs a Docker daemon. On a rootless one, avoid user-defined networks: starting a second container on one
 can block for minutes there (the test shares the server's network namespace instead).
@@ -272,7 +319,9 @@ under the [MIT License](LICENSE).
 
 The published container image contains [SuperTuxKart](https://supertuxkart.net),
 built unmodified from the official source release
-[`1.5`](https://github.com/supertuxkart/stk-code/releases/tag/1.5):
+[`1.5`](https://github.com/supertuxkart/stk-code/releases/tag/1.5). Only the installed game data is pruned: the image, audio and
+font files of the game are emptied (see "Pruned game data"), because the server does not use them. The image therefore
+does not contain those assets, only the license texts, credits and the data the server reads:
 
 - SuperTuxKart's code is licensed under the **GNU GPL v3.0 or later**.
 - Its game data (tracks, karts, music, textures) is under various free licenses,

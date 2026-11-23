@@ -33,6 +33,14 @@ RUN cmake -S /src -B /build \
  && cmake --install /build \
  && strip --strip-unneeded /opt/stk/bin/supertuxkart
 
+# The server never reads the game's images, audio or fonts: in five traced games (every mode, 45 tracks scanned) it opened models,
+# XML, scripts and music metadata, and only checked that 896 PNGs, 105 JPGs and a few audio and font files exist. They are
+# emptied, not deleted, so those checks still pass; the kart icons stay, because the server opens one of them. This takes about
+# 540 MB of images and 94 MB of audio out of the image. The license texts are copied from the source tree below, not from here.
+RUN cd /opt/stk/share/supertuxkart/data \
+ && find . -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.ogg' -o -iname '*.ttf' -o -iname '*.otf' \) \
+      ! -path './karts/*/*_icon.png' -exec truncate -s 0 {} +
+
 # upstream license texts: the GPL itself, the per-asset license files of the game data, and the credits
 RUN mkdir -p /opt/stk/share/doc/supertuxkart \
  && cp /src/COPYING /src/data/CREDITS /opt/stk/share/doc/supertuxkart/ \
