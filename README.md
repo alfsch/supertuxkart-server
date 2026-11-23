@@ -2,6 +2,14 @@
   <img src="docs/logo/logo.png" alt="A penguin in a go-kart on a shipping container: the SuperTuxKart server container image (unofficial)" width="320">
 </p>
 
+<p align="center">
+  <a href="https://github.com/alfsch/supertuxkart-server/actions/workflows/publish.yaml"><img src="https://github.com/alfsch/supertuxkart-server/actions/workflows/publish.yaml/badge.svg?branch=main" alt="Publish image: status of the last run on main"></a>
+  <a href="https://github.com/alfsch/supertuxkart-server/releases"><img src="https://img.shields.io/github/v/release/alfsch/supertuxkart-server" alt="Latest release"></a>
+  <a href="#interface"><img src="https://img.shields.io/badge/platforms-linux%2Famd64%20%C2%B7%20linux%2Farm64-blue" alt="Platforms: linux/amd64 and linux/arm64"></a>
+  <a href="#verifying-the-image"><img src="https://img.shields.io/badge/signed-cosign-blue" alt="Signed with cosign"></a>
+  <a href="https://docs.renovatebot.com"><img src="https://img.shields.io/badge/renovate-enabled-brightgreen?logo=renovatebot" alt="Renovate enabled"></a>
+</p>
+
 # supertuxkart-server
 
 A [SuperTuxKart](https://supertuxkart.net) (STK) dedicated server as a container image for **linux/amd64 and linux/arm64**,
