@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="A penguin in a go-kart on a shipping container: the SuperTuxKart server container image (unofficial)" width="320">
+</p>
+
 # supertuxkart-server
 
 A [SuperTuxKart](https://supertuxkart.net) (STK) dedicated server as a container image for **linux/amd64 and linux/arm64**,
@@ -251,3 +255,7 @@ file of each asset), and this repository's MIT license under `/opt/stk/share/doc
 The corresponding source is the upstream release above, verified by the SHA-256 in
 the [Dockerfile](Dockerfile), plus the build scripts in this repository. When `STK_VERSION` changes, `STK_SHA256` (see "Updating STK") and
 this link change with it. This is the maintainer's working assumption, not legal advice.
+
+The logo ([`logo.png`](logo.png), cropped from [`logo-original.jpg`](logo-original.jpg)) was generated with Microsoft's Bing
+Image Creator and uses no artwork of SuperTuxKart. This is an unofficial image: it is not made, endorsed or supported by the
+SuperTuxKart project, whose name is used here only to say which software the image contains.
