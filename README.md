@@ -69,6 +69,21 @@ It lists the Debian packages of the image. It does not list the libraries compil
 mcpp) or the game data. The attestation is not signed by itself; the signature of the image (above) covers the image
 index that refers to it.
 
+## Vulnerabilities of the image you run
+
+Every day all release images that are still in the registry are scanned with [Trivy](https://trivy.dev), and the result is shown where you
+look for your version:
+
+- **The page of each [GitHub release](https://github.com/alfsch/supertuxkart-server/releases)** has a "Vulnerabilities" block with the
+  counts per platform and the date of the scan.
+- **[The report](https://github.com/alfsch/supertuxkart-server/blob/scan-reports/README.md)** on the `scan-reports` branch lists every
+  release, newest first, with a page per image: package, installed and fixed version, and the CVEs.
+
+Releases that share an image (`1.5.0` to `1.5.4` do) are one row. If you run `:1.5` or `:latest`, you run the newest release at the time you
+pulled; `docker image inspect ghcr.io/alfsch/supertuxkart-server:1.5 --format '{{index .RepoDigests 0}}'` gives the digest to find in the
+report. The scan counts **fixable HIGH and CRITICAL** vulnerabilities of the **Debian packages**; the libraries compiled into the STK binary
+(bullet, enet, mcpp, ...) and the game data are not covered. A finding with a fix goes away with the next image: update to the newest release.
+
 ## Quick start
 
 ```sh
@@ -296,6 +311,12 @@ can block for minutes there (the test shares the server's network namespace inst
   once a scan no longer finds it. Same scope as the scan above (fixable HIGH and CRITICAL findings of the Debian packages), and it
   never fails the run on findings, only on an error of the scan itself. The Trivy database changes daily, so it finds CVEs filed
   against an image that has not changed; a finding with a fix stays until a new image is built.
+- `scan-releases.yaml`: every day (05:47 UTC) it scans every release image that is still in the registry (`release-images.sh` lists them,
+  releases with the same image are scanned once) and builds the report of the section above (`scan-report.sh`): a block in the notes of each
+  GitHub release and the pages on the `scan-reports` branch, one commit a day. Old images stay out of GitHub code scanning on purpose: their
+  alerts could never close. Only its `report` job writes to the repository (`contents: write`: the branch and the release notes). A scan or
+  upload error fails the run, findings do not; a missing result is never shown as clean. The grouping and the report have an offline test
+  (`test-scan-report.sh`) that runs in every pull request.
 - `test.yaml`: on pull requests, builds both architectures without pushing and runs the smoke test.
 - `prune.yaml`: weekly, keeps the newest 5 images (by dated tag or release number) and everything younger than 30 days
   (`prune-images.sh`; by hand it is a dry run unless switched off). The newest image carries `latest`, so it always stays and
