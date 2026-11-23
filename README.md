@@ -256,7 +256,7 @@ when a game loads it. To get the full data back, use a release up to `1.5.7`, or
 the Dockerfile and build the image yourself.
 
 **Limits.** Bots played all five modes on the pruned image as on the full one (same worlds loaded, same games finished, no new
-errors). A human client was not tried against the pruned image, and only a few of the 45 tracks were loaded.
+errors). A human played a race on the pruned image (see "Not verified"); only a few of the 45 tracks were loaded.
 
 ## Updating STK
 
@@ -275,13 +275,14 @@ the release.
 
 ## Not verified
 
-- Bots leaving as humans join (`STK_AI_HANDLING=true`), and a race started by a human. A human has joined a server on a
-  Raspberry Pi (arm64), but these two were not checked. The `SERVER_ONLY` binary cannot be a human client, so CI cannot
-  do it either.
-- A human client against the pruned image (the human join on the Pi was before the pruning), and all 45 tracks (a few were loaded).
+Verified by a human on 2026-11-23: on a Raspberry Pi 5 (arm64) running `1.5.9` (pruned game data) a human joined the `race` server
+with 19 bots, and the race started by itself after the 20 s countdown. (With `1.5.8` and the old default of `STK_MIN_PLAYERS=2` it
+had not started.) The `SERVER_ONLY` binary cannot be a human client, so CI cannot do this.
+
+- Bots leaving as humans join (`STK_AI_HANDLING=true`): a human joined a race with 19 bots and it started, but how many bots
+  raced was not counted. And all 45 tracks (a few were loaded).
 - A WAN server (it needs an STK account).
-- arm64 at runtime beyond that: CI builds and smoke-tests it, and a human join worked on a Pi, but the checks above were
-  run on amd64.
+- arm64 at runtime beyond what a human did on a Pi (below): the other checks were run on amd64.
 
 ## Build and test locally
 
