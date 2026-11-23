@@ -3,6 +3,9 @@
 A [SuperTuxKart](https://supertuxkart.net) (STK) dedicated server as a container image for **linux/amd64 and linux/arm64**,
 with a bot client that fills a server with AI karts. It is built from the STK sources with `-DSERVER_ONLY=ON`: no graphics,
 audio or input stack in the image, and it runs as the non-root user `stk`.
+The binary is built as a PIE with the stack protector, `_FORTIFY_SOURCE=2` and full RELRO (`-z relro -z now`), and is stripped; Debian's
+GCC enables only PIE by default, so the flags are set in the [Dockerfile](Dockerfile). This covers the STK binary and the libraries
+bundled into it (enet, bullet, mcpp), not the Debian packages of the image.
 
 ```
 ghcr.io/alfsch/supertuxkart-server:latest        newest build
