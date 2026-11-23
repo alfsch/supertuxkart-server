@@ -145,6 +145,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           pull: true
+          sbom: true   # an SPDX attestation next to the provenance; it lists the Debian packages of the final stage
           build-args: |
             STK_VERSION=${{ needs.meta.outputs.version }}
             STK_SHA256=${{ needs.meta.outputs.sha256 }}
