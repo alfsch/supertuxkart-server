@@ -16,3 +16,6 @@ is outside the crop.
 The prompt names neither SuperTuxKart nor Tux, so the logo uses no artwork of the SuperTuxKart project. No license is claimed
 for it: whether an AI-generated image can be copyrighted is unclear, and Microsoft's terms for the Image Creator apply. This
 repository is not made, endorsed or supported by the SuperTuxKart project.
+
+`social-preview.png` (1280×640) is `logo.png` on the same background with the name and a caption set beside it. It is the image
+for the repository's social preview (Settings, General, Social preview), which GitHub only lets you upload in its web interface.
