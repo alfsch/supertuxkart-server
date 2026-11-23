@@ -7,12 +7,18 @@
 # - Single instance: keep only `race` and `race-bots`; no start delay is needed.
 # - start_period and STK_START_DELAY: the server is healthy about a second after it starts on an amd64 desktop; measure on
 #   the target host (a Raspberry Pi is slower) and leave plenty of margin.
+# - Hardening: read-only root file system with a tmpfs for the home directory (STK writes its config and cache there; the stk
+#   user is uid/gid 999), no capabilities, no privilege gain. Tried with a server and bots on 1.5.8: both start and join.
 # - Keep a join password out of this file: env_file with mode 600, STK_SERVER_PASSWORD (or STK_SERVER_PASSWORD_FILE).
 x-stk: &stk
   image: ghcr.io/alfsch/supertuxkart-server:1.5   # newest build of STK 1.5; :latest would follow a future STK 1.6, which 1.5 clients cannot join
   network_mode: host
   restart: unless-stopped
   ulimits: { core: 0 }
+  read_only: true
+  tmpfs: ["/home/stk:uid=999,gid=999,mode=0700"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
 
 x-health: &health
   interval: 15s
