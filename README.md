@@ -92,6 +92,10 @@ docker compose up -d
 docker compose ps                       # (healthy) after a few seconds
 ```
 
+The example runs the containers with a read-only root file system (a tmpfs for `/home/stk`, where STK writes its config and cache),
+no capabilities and `no-new-privileges`. A server and bots were tried that way; if you add a mount that STK has to write to, it
+needs to be writable too.
+
 ## Interface
 
 Everything is set through environment variables; none of it needs a volume. Services use `network_mode: host`: LAN discovery
@@ -279,6 +283,7 @@ the release.
 
 ```sh
 docker build -t stk-server:local .                   # ~10 minutes for the C++ build on 12 cores, then cached
+.github/scripts/test-entrypoint.sh stk-server:local  # variable validation and the generated config, ~30 s, no server started
 .github/scripts/smoke-test.sh stk-server:local       # the interface checks, ~20 s
 ```
 
@@ -317,7 +322,8 @@ can block for minutes there (the test shares the server's network namespace inst
   alerts could never close. Only its `report` job writes to the repository (`contents: write`: the branch and the release notes). A scan or
   upload error fails the run, findings do not; a missing result is never shown as clean. The grouping and the report have an offline test
   (`test-scan-report.sh`) that runs in every pull request.
-- `test.yaml`: on pull requests, builds both architectures without pushing and runs the smoke test.
+- `test.yaml`: on pull requests, builds both architectures without pushing and runs the entrypoint tests and the smoke test. A `lint`
+  job runs shellcheck, actionlint and hadolint (settings in `.hadolint.yaml`); it is not a required check.
 - `prune.yaml`: weekly, keeps the newest 5 images (by dated tag or release number) and everything younger than 30 days
   (`prune-images.sh`; by hand it is a dry run unless switched off). The newest image carries `latest`, so it always stays and
   the release counter never falls back.

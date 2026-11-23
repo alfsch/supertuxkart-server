@@ -1,0 +1,8 @@
+# Settings for hadolint (the lint job in .github/workflows/test.yaml).
+ignored:
+  # packages are not pinned on purpose: the weekly rebuild exists to pick up Debian security updates (see APT_REFRESH)
+  - DL3008
+  # `cd` inside one RUN keeps the step self-contained; a WORKDIR would change the directory of every later step
+  - DL3003
+  # the only pipe is `echo <hash> | sha256sum -c -`: a failing echo is not a case that needs pipefail
+  - DL4006

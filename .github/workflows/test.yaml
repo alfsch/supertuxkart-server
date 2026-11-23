@@ -18,6 +18,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # shellcheck, actionlint and hadolint as pinned images. Not one of the required checks (.github/rulesets/protect-main.json):
+  # making it one is a change to that file and to the ruleset in the repository settings.
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: shellcheck
+        run: |
+          docker run --rm -v "$PWD:/mnt" -w /mnt koalaman/shellcheck:v0.10.0@sha256:2097951f02e735b613f4a34de20c40f937a6c8f18ecb170612c88c34517221fb \
+            -x --severity=warning entrypoint.sh healthcheck.sh .github/scripts/*.sh
+      - name: actionlint
+        run: |
+          docker run --rm -v "$PWD:/mnt" -w /mnt rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9
+      - name: hadolint
+        run: |
+          docker run --rm -v "$PWD:/mnt" -w /mnt hadolint/hadolint:v2.12.0@sha256:30a8fd2e785ab6176eed53f74769e04f125afb2f74a6c52aef7d463583b6d45e hadolint Dockerfile
+
   test:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
@@ -45,5 +65,7 @@ jobs:
           load: true
           tags: stk-test:local
           cache-from: type=gha,scope=build-${{ matrix.arch }}
+      - name: Entrypoint
+        run: .github/scripts/test-entrypoint.sh stk-test:local
       - name: Server and bots
         run: .github/scripts/smoke-test.sh stk-test:local
