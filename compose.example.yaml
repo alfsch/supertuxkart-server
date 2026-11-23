@@ -9,7 +9,7 @@
 #   the target host (a Raspberry Pi is slower) and leave plenty of margin.
 # - Keep a join password out of this file: env_file with mode 600, STK_SERVER_PASSWORD (or STK_SERVER_PASSWORD_FILE).
 x-stk: &stk
-  image: ghcr.io/alfsch/supertuxkart-server:latest   # from the hand-off report
+  image: ghcr.io/alfsch/supertuxkart-server:1.5   # newest build of STK 1.5; :latest would follow a future STK 1.6, which 1.5 clients cannot join
   network_mode: host
   restart: unless-stopped
   ulimits: { core: 0 }

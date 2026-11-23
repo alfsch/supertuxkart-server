@@ -294,7 +294,7 @@ jobs:
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
-  # What a user does: pull the published tag and run a server with bots, on both architectures, on a clean runner with
+  # What a user does: pull the published image (by the digest that was signed, which no later push can move) and run a server with bots, on both architectures, on a clean runner with
   # no local copy of the image.
   smoke:
     needs: [meta, merge]
@@ -319,15 +319,15 @@ jobs:
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: The signature verifies
         env:
-          PATCH: ${{ needs.meta.outputs.patch }}
+          DIGEST: ${{ needs.merge.outputs.digest }}
         run: |
-          cosign verify "$IMAGE:$PATCH" \
+          cosign verify "$IMAGE@$DIGEST" \
             --certificate-identity "https://github.com/$GITHUB_REPOSITORY/.github/workflows/publish.yaml@$GITHUB_REF" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
       - name: Server and bots
         env:
-          TAG: ${{ needs.meta.outputs.version }}-${{ needs.meta.outputs.date }}
-        run: .github/scripts/smoke-test.sh "$IMAGE:$TAG"
+          DIGEST: ${{ needs.merge.outputs.digest }}
+        run: .github/scripts/smoke-test.sh "$IMAGE@$DIGEST"
 
   # The GitHub release for the numbered image (git tag v<release number>, notes generated from the merged PRs since the last
   # release), once the published tag has passed the smoke test on both architectures. The weekly run is left out: it still
