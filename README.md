@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="A penguin in a go-kart on a shipping container: the SuperTuxKart server container image (unofficial)" width="320">
+  <img src="docs/logo/logo.png" alt="A penguin in a go-kart on a shipping container: the SuperTuxKart server container image (unofficial)" width="320">
 </p>
 
 # supertuxkart-server
@@ -256,6 +256,7 @@ The corresponding source is the upstream release above, verified by the SHA-256 
 the [Dockerfile](Dockerfile), plus the build scripts in this repository. When `STK_VERSION` changes, `STK_SHA256` (see "Updating STK") and
 this link change with it. This is the maintainer's working assumption, not legal advice.
 
-The logo ([`logo.png`](logo.png), cropped from [`logo-original.jpg`](logo-original.jpg)) was generated with Microsoft's Bing
+The logo ([`docs/logo/logo.png`](docs/logo/logo.png), cropped from [`logo-original.jpg`](docs/logo/logo-original.jpg); the prompt is in
+[`docs/logo/PROMPT.md`](docs/logo/PROMPT.md)) was generated with Microsoft's Bing
 Image Creator and uses no artwork of SuperTuxKart. This is an unofficial image: it is not made, endorsed or supported by the
 SuperTuxKart project, whose name is used here only to say which software the image contains.
