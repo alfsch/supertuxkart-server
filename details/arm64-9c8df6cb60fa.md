@@ -4,7 +4,7 @@ Image: `ghcr.io/alfsch/supertuxkart-server@sha256:9c8df6cb60fa71ed8c5014009bd11d
 
 Releases with this image: `1.5.8`
 
-Scanned 2026-11-25 UTC: **0 critical, 1 high** (fixable vulnerabilities of the Debian packages; the libraries compiled into the STK binary and the game data are not covered).
+Scanned 2026-11-26 UTC: **0 critical, 1 high** (fixable vulnerabilities of the Debian packages; the libraries compiled into the STK binary and the game data are not covered).
 
 | Package | Installed | Fixed in | Severity | CVEs |
 |---|---|---|---|---|
