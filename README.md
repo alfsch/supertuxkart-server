@@ -1,6 +1,6 @@
 # Vulnerability report of the published images
 
-Scanned **2026-11-26** (UTC) by [`scan-releases.yaml`](https://github.com/alfsch/supertuxkart-server/blob/main/.github/workflows/scan-releases.yaml), every day,
+Scanned **2026-11-27** (UTC) by [`scan-releases.yaml`](https://github.com/alfsch/supertuxkart-server/blob/main/.github/workflows/scan-releases.yaml), every day,
 for every release image that is still in the registry. Trivy counts the **fixable HIGH and CRITICAL** vulnerabilities of the **Debian
 packages**. The libraries compiled into the STK binary (bullet, enet, mcpp, ...) and the game data are not covered.
 
