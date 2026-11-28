@@ -242,7 +242,7 @@ jobs:
           docker buildx imagetools inspect "$IMAGE:$PATCH"
           echo "digest=$(docker buildx imagetools inspect "$IMAGE:$PATCH" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
           echo "published $IMAGE:$PATCH" >> "$GITHUB_STEP_SUMMARY"
-      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+      - uses: sigstore/cosign-installer@881c63bd87e38389154debd8331404ce7ca8a3ab # v4.1.4
       - name: Sign the image
         env:
           DIGEST: ${{ steps.create.outputs.digest }}
@@ -323,7 +323,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+      - uses: sigstore/cosign-installer@881c63bd87e38389154debd8331404ce7ca8a3ab # v4.1.4
       - name: The signature verifies
         env:
           DIGEST: ${{ needs.merge.outputs.digest }}
